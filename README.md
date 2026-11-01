@@ -1,0 +1,31 @@
+# DragonScope
+
+An AI assistant whose memory you can see and erase, built on the Dragon Hatchling (BDH) architecture. A dashboard will show what the model remembered from a conversation, flag sensitive data such as card and NIC numbers, and delete a chosen memory in one click. It is a prototype for FITIS INFOTEL 2026, aimed at banks, hospitals and telcos.
+
+All conversation data is synthetic. Never type real card or ID numbers into it.
+
+## Quick start
+
+```bash
+pip install -r requirements.txt
+python -m pytest -q
+python -m dragonscope.data --out data
+python -m dragonscope.train --data data --out runs/main
+```
+
+Training resumes from `latest.pt` if you rerun the same command. On a CPU it is slow, so use [notebooks/train_gpu.ipynb](notebooks/train_gpu.ipynb) on Colab or Kaggle.
+
+## Layout
+
+| Path | Purpose |
+|---|---|
+| `dragonscope/engine.py` | Stateful inference, the memory matrix `rho`, and Forget |
+| `dragonscope/data.py` | Synthetic conversation generator |
+| `dragonscope/train.py` | Resumable training and exact-recall evaluation |
+| `dragonscope/vendor/bdh/` | Unmodified upstream BDH, with its licence |
+| `docs/PLAN.md` | Schedule, pass marks and fallbacks |
+| `docs/STATUS.md` | Current state and next steps |
+
+## Licence notice
+
+`dragonscope/vendor/bdh/` is from [pathwaycom/bdh](https://github.com/pathwaycom/bdh) at commit `2b0d7a45b058d4309c84a10e0768d541fe18bdc2`. It is copyright 2025 Pathway Technology, Inc., under the MIT licence in [its LICENSE.md](dragonscope/vendor/bdh/LICENSE.md).

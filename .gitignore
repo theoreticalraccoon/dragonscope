@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.ipynb_checkpoints/
+
+# Regenerate with: python -m dragonscope.data --out data
+data/
+
+# Training output. Copy a milestone model into models/ to share it.
+runs/
+*.pt
+*.tmp
+!models/*.pt
+dragonscope_colab.zip
+
