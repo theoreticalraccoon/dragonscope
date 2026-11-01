@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 import torch
 
+from dragonscope.activity import ActivityRecorder
 from dragonscope.data import (
     FIELDS,
     QUESTIONS,
@@ -30,10 +31,10 @@ from dragonscope.vendor.bdh.bdh import BDH
 SESSION_LIMIT = 400
 # The longest trained reply and its newline: a card with separators.
 REPLY_RESERVE = 41
-MAP_NEURONS = 150
+MAP_NEURONS = 600
 # Saved for the neurons that hold the most of a flagged value, which may not be
 # among the strongest overall.
-MAP_FLAGGED_NEURONS = 30
+MAP_FLAGGED_NEURONS = 300
 
 
 class SessionError(Exception):
@@ -115,6 +116,7 @@ class DemoSession:
         self.deletion_log: list[dict] = []
         self.stated: set[str] = set()
         self.last_answer: dict | None = None
+        self._activity: list[dict] | None = None
         self._next_id = 1
 
     # Chat
@@ -152,6 +154,12 @@ class DemoSession:
         if memory.position + len(prompt) + REPLY_RESERVE > SESSION_LIMIT:
             raise SessionError("session_full", "This session is full. Please reset.")
 
+        recorder = ActivityRecorder(
+            memory.n_head, memory.N, memory.n_layer, self._flagged_rho()
+        )
+        flagged_before = self._flagged_positions()
+        first_position = memory.position
+        memory.observer = recorder
         start = memory.position + len(b"U: ")
         end = start + len(line)
         memory.read(prompt)
@@ -166,11 +174,15 @@ class DemoSession:
             )
 
         start = memory.position
+        recorder.phase = "write"
         written = memory.generate(MAX_REPLY_BYTES)
         if written.endswith(b"\n"):
             written = written[:-1]
         else:
             memory.read(b"\n")
+        memory.observer = None
+        self._measure_dependence(recorder.frames, first_position, flagged_before)
+        self._activity = recorder.frames
         self.turns.append(Turn("assistant", start, start + len(written)))
         # latin-1 maps each byte to one character, so offsets stay byte positions.
         reply = written.decode("latin-1")
@@ -184,6 +196,51 @@ class DemoSession:
                 detection.luhn_valid,
             )
         return reply
+
+    def take_activity(self) -> list[dict] | None:
+        """Return the last exchange's frames and keep no copy of them."""
+        activity, self._activity = self._activity, None
+        return activity
+
+    def _flagged_positions(self) -> set[int]:
+        return {
+            position
+            for finding in self.findings
+            for position in range(finding.start, finding.end)
+        }
+
+    def _measure_dependence(
+        self, frames: list[dict], first_position: int, excluded: set[int]
+    ) -> None:
+        """Set how much each written byte's probability relies on flagged memory."""
+        if not excluded:
+            return
+        memory = self.memory
+        actual = memory.logits_without(set())
+        without = memory.logits_without(excluded)
+        for offset, frame in enumerate(frames):
+            position = first_position + offset
+            if frame["phase"] != "write":
+                continue
+            byte = memory.bytes[position]
+            p_with = actual[position - 1].softmax(dim=0)[byte]
+            p_without = without[position - 1].softmax(dim=0)[byte]
+            frame["depends"] = round(max(0.0, float(p_with - p_without)), 3)
+
+    def _flagged_rho(self) -> torch.Tensor | None:
+        """Return the part of ``rho`` written by flagged bytes, if there are any."""
+        memory = self.memory
+        positions = self._flagged_positions()
+        if not positions:
+            return None
+        flagged = torch.zeros_like(memory.rho)
+        for position in positions:
+            entry = memory.ledger[position]
+            for level in range(memory.n_layer):
+                flagged[level] += torch.einsum(
+                    "d,hn->hdn", entry.v[level], entry.qr[level]
+                )
+        return flagged
 
     def _add_finding(
         self, kind: str, source: str, start: int, end: int, luhn: bool | None
@@ -325,22 +382,13 @@ class DemoSession:
         if not memory.bytes:
             return []
         strength = memory.rho.norm(dim=2)  # layer, head, neuron
-        flagged = torch.zeros_like(memory.rho)
-        positions = {
-            position
-            for finding in self.findings
-            for position in range(finding.start, finding.end)
-        }
-        for position in positions:
-            entry = memory.ledger[position]
-            for level in range(memory.n_layer):
-                flagged[level] += torch.einsum(
-                    "d,hn->hdn", entry.v[level], entry.qr[level]
-                )
-        flagged_strength = flagged.norm(dim=2)
+        flagged = self._flagged_rho()
+        flagged_strength = (
+            torch.zeros_like(strength) if flagged is None else flagged.norm(dim=2)
+        )
 
         chosen: dict[int, None] = {}
-        if positions:
+        if flagged is not None:
             top = flagged_strength.flatten().topk(MAP_FLAGGED_NEURONS).indices
             chosen.update(dict.fromkeys(top.tolist()))
         for index in strength.flatten().topk(MAP_NEURONS).indices.tolist():

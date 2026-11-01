@@ -6,7 +6,7 @@ The dashboard in `dragonscope/static/` talks to `python -m dragonscope.server` a
 
 ## Client to server
 
-Each accepted message is followed by a `state` message.
+Each accepted message is followed by a `state` message. A `say` or `ask` sends `activity` first.
 
 | Message | Effect |
 |---|---|
@@ -80,8 +80,32 @@ The lists are shortened here. `statements` and `questions` have an entry for eac
 - **`findings`:** every flagged span. `kind` is `card`, `nic` or `number`. `source` is `user` or `reply`. A reply's `luhn_valid` is `false` when it is a garbled echo of a card.
 - **`stated`:** fields given this session. A field can be given only once per session, even after Forget, so disable those inputs until reset.
 - **`last_answer`:** set after an `ask`, and `refused` is true when the reply is exactly the refusal. It is `null` after anything else.
-- **`memory.neurons`:** at most 150 neurons for the graph. This is the strongest set, plus the 30 holding most of any flagged data. `flagged_share` is that data's strength relative to the neuron's total, from 0 to 1. Call these neurons in a compressed form of the synaptic state, not individual synapses.
+- **`memory.neurons`:** at most 600 neurons for the brain. This is the strongest set, plus the 300 holding most of any flagged data. `flagged_share` is that data's strength relative to the neuron's total, from 0 to 1. Call these neurons in a compressed form of the synaptic state, not individual synapses.
 - **`position` and `position_limit`:** Forget does not free positions. When an `ask` or `say` would pass the limit, the server sends `session_full`. A visitor can state all four fields, ask once, Forget, ask again, and ask about at least one other field.
+
+### `activity`
+
+Sent before the `state` of each `say` or `ask`, with one frame per byte the model read or wrote.
+
+```json
+{
+  "type": "activity",
+  "frames": [
+    {
+      "phase": "write",
+      "fired": [{"i": [2176, 164], "s": [1.0, 0.94]}],
+      "flagged": [{"i": [812], "s": [1.0]}],
+      "depends": 0.98
+    }
+  ]
+}
+```
+
+- **`fired`:** per layer, the strongest firing neurons as flat indexes (`layer * 4096 + head * 1024 + neuron`), with strengths scaled so the top one is 1. These come from the tensors that compute the reply.
+- **`flagged`:** per layer, the neurons where this byte's query meets flagged memory. It is empty when nothing is flagged.
+- **`depends`:** for written bytes, how much of the probability of writing this byte disappears in a counterfactual run where the flagged bytes were never read. It is 0 for read bytes, and when nothing is flagged.
+
+Frames hold no text, but they are sensitive: at layer 0, which neurons fire depends only on the byte. The server does not keep them. **Hold them only while playing them, then drop them.**
 
 ### `forget_result`
 
@@ -114,4 +138,4 @@ Codes: `invalid_value`, `already_stated`, `session_full`, `unknown_field`, `unkn
 
 ## Timing
 
-Replies arrive as a whole, not byte by byte. On the demo laptop on battery, a reply takes under a second and Forget takes about 0.8 s, so show a short "erasing" state.
+Replies arrive as a whole, not byte by byte. On the demo laptop on battery, an exchange takes about 0.9 s and Forget about 0.8 s. The page then plays the activity back slowed down, over about 3 seconds, and says so.

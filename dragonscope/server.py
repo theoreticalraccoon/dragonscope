@@ -112,6 +112,9 @@ def create_app(model: BDH) -> FastAPI:
             async with lock:
                 result = await asyncio.to_thread(_dispatch, session, message)
                 state = await asyncio.to_thread(session.state)
+                activity = session.take_activity()
+                if activity is not None:
+                    await broadcast({"type": "activity", "frames": activity})
                 if result is not None:
                     await broadcast(result)
                 await broadcast(state)

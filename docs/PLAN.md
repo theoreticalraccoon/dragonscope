@@ -14,7 +14,7 @@ A visitor chats as a bank customer and shares a printed fake card number. The da
 | Sun Nov 1: engine and data | Repo and BDH with MIT notice. Stateful engine and Forget v1 tested on an untrained model. 50k+ conversations. Start training. | Stateful and full-forward logits match (max difference under 1e-3). Training is running and saving checkpoints. |
 | Mon Nov 2: recall and Forget | Train, then run Forget on the trained model. Evaluate with the ledger. | At least 90% exact recall on 500 unseen conversations by 6 pm. First Forget results by night. |
 | Tue Nov 3: verdict and backend | Finish Forget tests by 1 pm and choose a method. FastAPI and WebSocket server, card and NIC detection, fixed message format. | Go/no-go at 1 pm. Backend works from a test script. |
-| Wed Nov 4: dashboard | Guided chat, D3 graph, red alert, Forget button, "ask it again", proof panel. | Full booth flow works. No new features after tonight. |
+| Wed Nov 4: dashboard | Guided chat, 3D brain, red alert, Forget button, "ask it again", proof panel. | Full booth flow works. No new features after tonight. |
 | Thu Nov 5: rehearse | Wi-Fi off, bug fixes, backup video, pitch and judge questions. Pack by 9 pm. | 20 clean offline runs in a row. |
 
 ## Forget evaluation (Tue 1 pm decision)
@@ -42,10 +42,10 @@ Fallbacks, in order:
 - Detect cards with Luhn validation, and NICs as 9 digits plus V/X or 12 digits. Scan model replies too.
 - Forget must also clear the ledger, chat display, logs and WebSocket state.
 - Keep everything in memory and bind to `127.0.0.1`.
-- Draw only the top 150 or so neurons, on a canvas.
+- Draw the neurons as a 3D brain in WebGL, lit by real activity.
 - The proof panel shows the memory change, the re-ask result and a deletion log entry.
 - The deletion log stores only data type, last 4 digits and time. Never store a hash of a card number, because it is easy to brute-force.
-- Bundle D3 locally, use greedy output, add a reset button, and give visitors printed fake numbers.
+- Bundle three.js locally, use greedy output, add a reset button, and give visitors printed fake numbers.
 
 ## Claims to avoid
 

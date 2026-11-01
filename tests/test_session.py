@@ -208,7 +208,7 @@ def test_neuron_map_points_at_flagged_data_then_clears(session):
     session.say("branch", split_names("train")[2][0])
     session.say("card", CARD)
     neurons = session.state()["memory"]["neurons"]
-    assert 0 < len(neurons) <= 150
+    assert 0 < len(neurons) <= 600
     assert max(n["flagged_share"] for n in neurons) > 0.1
     session.forget(flagged(session, "card").id)
     neurons = session.state()["memory"]["neurons"]
@@ -247,6 +247,35 @@ def test_forgotten_field_cannot_be_restated_until_reset(session):
     assert error.value.code == "already_stated"
     session.reset()
     session.say("card", "5500 0000 0000 0004")
+
+
+def test_activity_has_one_frame_per_byte_and_is_handed_over_once(session):
+    session.say("card", CARD)
+    before = session.memory.position
+    frames = session.take_activity()
+    assert len(frames) == before
+    assert frames[0]["phase"] == "read" and frames[-1]["phase"] == "write"
+    assert session.take_activity() is None
+    assert session.memory.observer is None
+    assert len(frames[0]["fired"]) == session.memory.n_layer
+    per_layer = session.memory.n_head * session.memory.N
+    assert all(i // per_layer == 2 for i in frames[0]["fired"][2]["i"])
+    assert set(frames[0]) == {"phase", "fired", "flagged", "depends"}
+
+
+def test_activity_reports_flagged_neurons_only_while_something_is_flagged(session):
+    script(session, "Noted.\n", "Noted.\n", "Noted.\n", "Noted.\n")
+    session.say("branch", split_names("train")[2][0])
+    frames = session.take_activity()
+    assert all(f["flagged"] == [] and f["depends"] == 0 for f in frames)
+    session.say("card", CARD)
+    session.take_activity()
+    session.ask("name")
+    assert any(f["flagged"] for f in session.take_activity())
+    session.forget(flagged(session, "card").id)
+    session.ask("card")
+    frames = session.take_activity()
+    assert all(f["flagged"] == [] and f["depends"] == 0 for f in frames)
 
 
 def test_full_session_is_refused_before_reading(session):

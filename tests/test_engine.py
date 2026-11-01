@@ -122,6 +122,41 @@ def test_rebuild_matches_stepping_byte_by_byte(model):
     assert (logits - stepped.read(b"What")).abs().max().item() < 1e-3
 
 
+def test_observer_sees_every_layer_and_changes_nothing(model):
+    plain = SessionMemory(model).read(TEXT)
+    watched = SessionMemory(model)
+    calls = []
+    watched.observer = lambda level, *_: calls.append(level)
+    logits = watched.read(TEXT)
+    assert torch.equal(logits, plain)
+    assert len(calls) == len(TEXT) * watched.n_layer
+    calls.clear()
+    watched.rebuild()
+    assert calls == []
+
+
+def test_logits_without_matches_a_session_that_never_saw_the_bytes(model):
+    session = SessionMemory(model)
+    session.read(TEXT)
+    rho = session.rho.clone()
+    excluded = set(range(SECRET_START, SECRET_END))
+    without = session.logits_without(excluded)
+    assert torch.equal(session.rho, rho)
+    assert excluded.isdisjoint(without)
+
+    never_saw = SessionMemory(model)
+    for position, byte in enumerate(TEXT):
+        if position not in excluded:
+            logits = never_saw._step(byte, position)
+            assert (without[position] - logits).abs().max().item() < 1e-3
+
+    full = SessionMemory(model)
+    rows = full.read(TEXT)
+    everything = session.logits_without(set())
+    for position in range(len(TEXT)):
+        assert (everything[position] - rows[position]).abs().max().item() < 1e-3
+
+
 def test_rebuilding_an_empty_session_keeps_its_position(model):
     session = SessionMemory(model)
     session.read(b"abc")

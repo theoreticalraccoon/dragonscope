@@ -6,9 +6,23 @@ The project is ahead of schedule: the Day 1 gates, the card and NIC part of the 
 
 ## Dashboard
 
-`python -m dragonscope.server`, then open http://127.0.0.1:8000. It is a minimal exhibit, as the owner asked: one sentence tells the story, memory is a radial scope (rings are layers, quadrants are heads), and one red button forgets. Files are in `dragonscope/static/`, with D3 7.9.0 and its licence bundled locally.
+`python -m dragonscope.server`, then open http://127.0.0.1:8000. It is a minimal exhibit, as the owner asked: numbered steps and one sentence tell the story, a 3D brain shows memory, and one glowing button shows the next action. Files are in `dragonscope/static/`, with three.js 0.160.0 and its licence bundled locally. The owner replaced the plan's D3 graph with this brain, so D3 is gone.
 
-Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, there were no console errors, and the page requested nothing from outside 127.0.0.1. Nobody has yet run it with Wi-Fi off, or on a booth screen.
+**The activity is real.** Each dot is one of the 16,384 neurons. Depth shows the layer and region shows the head. The brain shape is an illustration, and the page says so. `dragonscope/activity.py` records which neurons fire for each byte from the tensors that compute the reply. Nothing lights up otherwise. The page plays the recording back slowed down, and says that too. The lines show the signal passing between layers, not individual synapses.
+
+**The red letters are a measurement.** For each written byte, `depends` is how much of its probability disappears in a counterfactual run where the flagged bytes were never read. Over 15 sessions with a card and NIC stored:
+
+| Question | Digits written, mean `depends` | Share over 0.5 | Other bytes, mean `depends` |
+|---|---|---|---|
+| Card | 0.88 | 87.5% | 0.05 |
+| NIC | 0.89 | 90.9% | 0.10 |
+| Branch | n/a | n/a | 0.00 |
+
+Two simpler signals failed and were dropped, so do not bring them back. The share of `rho` from flagged data (0.07 to 0.29) and the attention weight on the card's bytes neither peaked on recalled digits nor separated the card question from the branch question.
+
+Limits: `depends` compares the model with and without **all** flagged data, not one value. A digit can score low when the model would have guessed the same digit anyway. After Forget it is 0 because nothing flagged remains to remove, so it is not separate evidence of erasure.
+
+Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, activity frames were dropped after playing, there were no console errors, and the page requested nothing from outside 127.0.0.1. It held about 50 frames a second with software rendering. Nobody has yet watched it on the laptop's real GPU, run it with Wi-Fi off, or seen it on a booth screen.
 
 ## Backend
 

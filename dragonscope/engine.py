@@ -52,6 +52,9 @@ class SessionMemory:
         self.n_head = config.n_head
         self.D = config.n_embd
         self.N = config.mlp_internal_dim_multiplier * config.n_embd // config.n_head
+        # Optional callback(level, x_sparse, qr, rho) to watch each layer of a step.
+        # It must only read. ``fork`` and ``rebuild`` do not report to it.
+        self.observer = None
         self.reset()
 
     def reset(self) -> None:
@@ -113,6 +116,8 @@ class SessionMemory:
             qr = Attention.rope(phases, x_sparse)[0, :, 0, :]  # nh, N
             v = x[0, 0, 0, :]  # D
 
+            if self.observer is not None:
+                self.observer(level, x_sparse[0, :, 0, :], qr, self.rho[level])
             attention = torch.einsum("hdn,hn->hd", self.rho[level], qr)
             self.rho[level] += torch.einsum("d,hn->hdn", v, qr)
             entry_v.append(v)
@@ -196,6 +201,29 @@ class SessionMemory:
         if not survivors:
             return
 
+        _, rho, v, qr = self._forward_all(survivors)
+        self.rho = rho
+        for slot, (original_position, byte) in enumerate(survivors):
+            self.bytes[original_position] = byte
+            self.ledger[original_position] = LedgerEntry(
+                v=v[:, slot].clone(), qr=qr[:, :, slot].clone()
+            )
+
+    @torch.no_grad()
+    def logits_without(self, excluded: set[int]) -> dict[int, torch.Tensor]:
+        """Return next-byte logits per position, as if ``excluded`` were never read.
+
+        This changes nothing in the session. Comparing it with ``excluded`` empty
+        shows what the model's output owes to those bytes.
+        """
+        survivors = [item for item in sorted(self.bytes.items()) if item[0] not in excluded]
+        if not survivors:
+            return {}
+        logits, *_ = self._forward_all(survivors)
+        return {position: logits[slot] for slot, (position, _) in enumerate(survivors)}
+
+    def _forward_all(self, survivors: list[tuple[int, int]]):
+        """Run all ``(position, byte)`` pairs at once and return logits, rho, v and qr."""
         model = self.model
         device = self.rho.device
         count = len(survivors)
@@ -205,6 +233,7 @@ class SessionMemory:
         index = torch.tensor([[byte for _, byte in survivors]], device=device)
         x = model.ln(model.embed(index).unsqueeze(1))  # 1, 1, T, D
         phases = positions * model.attn.freqs
+        rho = torch.zeros_like(self.rho)
         all_v = []
         all_qr = []
 
@@ -212,7 +241,7 @@ class SessionMemory:
             x_sparse = F.relu(x @ model.encoder)  # 1, nh, T, N
             qr = Attention.rope(phases, x_sparse)
             attention = (qr @ qr.mT).tril(diagonal=-1) @ x
-            self.rho[level] = x[0, 0].T @ qr[0]
+            rho[level] = x[0, 0].T @ qr[0]
             all_v.append(x[0, 0])
             all_qr.append(qr[0])
 
@@ -222,13 +251,9 @@ class SessionMemory:
             ) @ model.decoder
             x = model.ln(x + model.ln(y_mlp))
 
-        v = torch.stack(all_v)  # n_layer, T, D
-        qr = torch.stack(all_qr)  # n_layer, nh, T, N
-        for slot, (original_position, byte) in enumerate(survivors):
-            self.bytes[original_position] = byte
-            self.ledger[original_position] = LedgerEntry(
-                v=v[:, slot].clone(), qr=qr[:, :, slot].clone()
-            )
+        logits = x[0, 0] @ model.lm_head  # T, vocab
+        # n_layer, T, D and n_layer, nh, T, N
+        return logits, rho, torch.stack(all_v), torch.stack(all_qr)
 
     def residual_from_replay(self) -> dict[str, list[float] | float]:
         """Compare ``rho`` with a clean rebuild of the surviving bytes.

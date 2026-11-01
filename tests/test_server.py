@@ -23,6 +23,16 @@ def client(model):
     return TestClient(create_app(model))
 
 
+def next_state(socket):
+    """Skip the activity frames that arrive before a chat turn's state."""
+    message = socket.receive_json()
+    if message["type"] == "activity":
+        assert message["frames"]
+        message = socket.receive_json()
+    assert message["type"] == "state"
+    return message
+
+
 def test_hello_has_the_guide_and_state(client):
     with client.websocket_connect("/ws") as socket:
         hello = socket.receive_json()
@@ -35,8 +45,7 @@ def test_say_forget_and_reset_over_the_socket(client):
     with client.websocket_connect("/ws") as socket:
         socket.receive_json()
         socket.send_json({"type": "say", "field": "card", "value": CARD})
-        state = socket.receive_json()
-        assert state["type"] == "state"
+        state = next_state(socket)
         finding = next(f for f in state["findings"] if f["source"] == "user")
 
         socket.send_json({"type": "forget", "finding": finding["id"]})
@@ -57,8 +66,8 @@ def test_every_client_gets_the_new_state(client):
         first.receive_json()
         second.receive_json()
         first.send_json({"type": "say", "field": "card", "value": CARD})
-        assert first.receive_json()["findings"]
-        assert second.receive_json()["findings"]
+        assert next_state(first)["findings"]
+        assert next_state(second)["findings"]
 
 
 def test_errors_go_back_without_repeating_the_value(client):
@@ -97,9 +106,9 @@ def test_page_and_its_files_are_served_locally(client):
     page = client.get("/")
     assert page.status_code == 200
     assert "DragonScope" in page.text
-    for path in ("style.css", "app.js", "vendor/d3.min.js"):
+    for path in ("style.css", "app.js", "brain.js", "vendor/three.min.js"):
         assert client.get(f"/{path}").status_code == 200
     # The demo must run offline, so our own files load nothing from elsewhere.
-    for path in ("/", "/style.css", "/app.js"):
+    for path in ("/", "/style.css", "/app.js", "/brain.js"):
         assert "http://" not in client.get(path).text
         assert "https://" not in client.get(path).text

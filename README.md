@@ -32,7 +32,8 @@ Then open http://127.0.0.1:8000.
 | `dragonscope/detect.py` | Card and NIC detection in statements and replies |
 | `dragonscope/session.py` | Guided chat, flagged values and Forget for one session |
 | `dragonscope/server.py` | FastAPI and WebSocket server, using `docs/PROTOCOL.md` |
-| `dragonscope/static/` | The exhibit page, with D3 bundled locally |
+| `dragonscope/activity.py` | Records which neurons really fire for each byte |
+| `dragonscope/static/` | The exhibit page and 3D brain, with three.js bundled locally |
 | `scripts/booth_check.py` | Runs the booth flow over a real WebSocket |
 | `dragonscope/train.py` | Resumable training and exact-recall evaluation |
 | `dragonscope/vendor/bdh/` | Unmodified upstream BDH, with its licence |
@@ -41,6 +42,6 @@ Then open http://127.0.0.1:8000.
 
 ## Licence notice
 
-`dragonscope/static/vendor/d3.min.js` is D3 7.9.0, under the licence in [d3-LICENSE.txt](dragonscope/static/vendor/d3-LICENSE.txt).
+`dragonscope/static/vendor/three.min.js` is three.js 0.160.0, under the licence in [three-LICENSE.txt](dragonscope/static/vendor/three-LICENSE.txt).
 
 `dragonscope/vendor/bdh/` is from [pathwaycom/bdh](https://github.com/pathwaycom/bdh) at commit `2b0d7a45b058d4309c84a10e0768d541fe18bdc2`. It is copyright 2025 Pathway Technology, Inc., under the MIT licence in [its LICENSE.md](dragonscope/vendor/bdh/LICENSE.md).

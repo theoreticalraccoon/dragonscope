@@ -12,8 +12,14 @@
 
   <header>
     <strong>DragonScope</strong>
-    <span class="dim">Prototype. Fake numbers only.</span>
+    <ol class="steps" id="steps" aria-label="Steps">
+      <li>Tell it</li>
+      <li>Ask it</li>
+      <li>Forget</li>
+      <li>Ask again</li>
+    </ol>
     <span class="dim" id="connection" hidden>Reconnecting…</span>
+    <span class="dim fake-note">Prototype. Fake numbers only.</span>
     <button class="link" id="reset" type="button">Reset</button>
   </header>
 
@@ -21,6 +27,7 @@
     <section class="story">
       <div aria-live="polite">
         <p class="headline" id="headline"></p>
+        <p class="subline" id="subline"></p>
         <div class="actions" id="actions"></div>
       </div>
 
@@ -28,10 +35,10 @@
 
       <form id="say-form" autocomplete="off">
         <div class="choices">
-          <span class="dim">Share</span>
+          <span class="dim">Tell it</span>
           <span id="tabs"></span>
         </div>
-        <div class="entry">
+        <div class="entry" id="entry">
           <span id="say-fields"></span>
           <button class="link strong" id="say-send" type="submit">Send</button>
         </div>
@@ -39,19 +46,30 @@
       </form>
 
       <div class="choices">
-        <span class="dim">Ask</span>
+        <span class="dim">Ask it</span>
         <span id="asks"></span>
       </div>
     </section>
 
-    <section class="scope">
-      <div class="scope-wrap"><canvas id="map" role="img" aria-label="The model's memory. Neurons holding flagged data turn red."></canvas></div>
+    <section class="brain">
+      <div class="brain-wrap" id="brain-wrap">
+        <canvas id="brain" role="img" aria-label="A brain made of the model's neurons. Neurons light up as they fire, and those holding private data are red."></canvas>
+        <ul class="legend">
+          <li><span class="swatch fire"></span>Firing now</li>
+          <li><span class="swatch hot"></span>Holds or recalls your private data</li>
+        </ul>
+        <div class="readout" id="readout" hidden>
+          <p class="readout-label" id="readout-label"></p>
+          <div class="readout-track"><div id="readout-fill"></div></div>
+        </div>
+      </div>
       <div id="proof"></div>
-      <p class="dim caption">Strongest 150 neurons, by layer. A compressed form of the model's synaptic state. Red marks the share held from flagged data.</p>
+      <p class="dim caption">Each dot is one of the model's 16,384 real neurons, and the activity is real, slowed down to watch. The brain shape is an illustration: depth shows the layer and region shows the head. Drag to turn it.</p>
     </section>
   </main>
 
-  <script src="vendor/d3.min.js"></script>
+  <script src="vendor/three.min.js"></script>
+  <script src="brain.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
