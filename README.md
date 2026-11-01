@@ -15,6 +15,14 @@ python -m dragonscope.train --data data --out runs/main
 
 Training resumes from `latest.pt` if you rerun the same command. On a CPU it is slow, so use [notebooks/train_gpu.ipynb](notebooks/train_gpu.ipynb) on Colab or Kaggle.
 
+## Run the demo
+
+```bash
+python -m dragonscope.server
+```
+
+Then open http://127.0.0.1:8000.
+
 ## Layout
 
 | Path | Purpose |
@@ -24,6 +32,7 @@ Training resumes from `latest.pt` if you rerun the same command. On a CPU it is 
 | `dragonscope/detect.py` | Card and NIC detection in statements and replies |
 | `dragonscope/session.py` | Guided chat, flagged values and Forget for one session |
 | `dragonscope/server.py` | FastAPI and WebSocket server, using `docs/PROTOCOL.md` |
+| `dragonscope/static/` | The exhibit page, with D3 bundled locally |
 | `scripts/booth_check.py` | Runs the booth flow over a real WebSocket |
 | `dragonscope/train.py` | Resumable training and exact-recall evaluation |
 | `dragonscope/vendor/bdh/` | Unmodified upstream BDH, with its licence |
@@ -31,5 +40,7 @@ Training resumes from `latest.pt` if you rerun the same command. On a CPU it is 
 | `docs/STATUS.md` | Current state and next steps |
 
 ## Licence notice
+
+`dragonscope/static/vendor/d3.min.js` is D3 7.9.0, under the licence in [d3-LICENSE.txt](dragonscope/static/vendor/d3-LICENSE.txt).
 
 `dragonscope/vendor/bdh/` is from [pathwaycom/bdh](https://github.com/pathwaycom/bdh) at commit `2b0d7a45b058d4309c84a10e0768d541fe18bdc2`. It is copyright 2025 Pathway Technology, Inc., under the MIT licence in [its LICENSE.md](dragonscope/vendor/bdh/LICENSE.md).

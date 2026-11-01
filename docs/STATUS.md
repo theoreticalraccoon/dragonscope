@@ -2,7 +2,13 @@
 
 Last updated: Sun Nov 1, 2026, evening. Update this before ending any session.
 
-The project is ahead of schedule: the Day 1 gates, the card and NIC part of the Day 2 recall gate, the Tuesday Forget go/no-go and the Tuesday backend are all done. **Next is the dashboard (Wednesday's build), against [PROTOCOL.md](PROTOCOL.md).**
+The project is ahead of schedule: the Day 1 gates, the card and NIC part of the Day 2 recall gate, the Tuesday Forget go/no-go, the Tuesday backend and the Wednesday dashboard are all done. **Next is Thursday's rehearsal.**
+
+## Dashboard
+
+`python -m dragonscope.server`, then open http://127.0.0.1:8000. It is a minimal exhibit, as the owner asked: one sentence tells the story, memory is a radial scope (rings are layers, quadrants are heads), and one red button forgets. Files are in `dragonscope/static/`, with D3 7.9.0 and its licence bundled locally.
+
+Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, there were no console errors, and the page requested nothing from outside 127.0.0.1. Nobody has yet run it with Wi-Fi off, or on a booth screen.
 
 ## Backend
 
@@ -65,8 +71,8 @@ Reading or writing took 17 ms a byte at 4 threads, on battery on Balanced power,
 
 ## Next
 
-1. Dashboard (Wednesday's build): guided chat, D3 graph from `memory.neurons`, red alert from flagged segments, Forget button, "ask it again", proof panel, reset. Bundle D3 locally. The server does not serve static files yet, so add that with it.
-2. Rehearse on Thursday: 20 clean offline runs in a row, with Wi-Fi off and the laptop plugged in.
+1. Rehearse on Thursday: 20 clean offline runs in a row in the browser, with Wi-Fi off and the laptop plugged in. Check readability on the booth screen.
+2. Record the backup video, print the fake card numbers, and prepare the pitch and judge questions.
 
 ## Known design points
 

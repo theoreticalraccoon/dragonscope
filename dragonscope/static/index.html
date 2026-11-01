@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DragonScope</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="session-line" title="Session length"><div id="session-fill"></div></div>
+
+  <header>
+    <strong>DragonScope</strong>
+    <span class="dim">Prototype. Fake numbers only.</span>
+    <span class="dim" id="connection" hidden>Reconnecting…</span>
+    <button class="link" id="reset" type="button">Reset</button>
+  </header>
+
+  <main>
+    <section class="story">
+      <div aria-live="polite">
+        <p class="headline" id="headline"></p>
+        <div class="actions" id="actions"></div>
+      </div>
+
+      <div class="transcript" id="transcript"></div>
+
+      <form id="say-form" autocomplete="off">
+        <div class="choices">
+          <span class="dim">Share</span>
+          <span id="tabs"></span>
+        </div>
+        <div class="entry">
+          <span id="say-fields"></span>
+          <button class="link strong" id="say-send" type="submit">Send</button>
+        </div>
+        <p class="form-note" id="form-note"></p>
+      </form>
+
+      <div class="choices">
+        <span class="dim">Ask</span>
+        <span id="asks"></span>
+      </div>
+    </section>
+
+    <section class="scope">
+      <div class="scope-wrap"><canvas id="map" role="img" aria-label="The model's memory. Neurons holding flagged data turn red."></canvas></div>
+      <div id="proof"></div>
+      <p class="dim caption">Strongest 150 neurons, by layer. A compressed form of the model's synaptic state. Red marks the share held from flagged data.</p>
+    </section>
+  </main>
+
+  <script src="vendor/d3.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

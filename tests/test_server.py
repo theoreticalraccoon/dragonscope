@@ -91,3 +91,15 @@ def test_other_origins_are_refused(client):
 
 def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_page_and_its_files_are_served_locally(client):
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "DragonScope" in page.text
+    for path in ("style.css", "app.js", "vendor/d3.min.js"):
+        assert client.get(f"/{path}").status_code == 200
+    # The demo must run offline, so our own files load nothing from elsewhere.
+    for path in ("/", "/style.css", "/app.js"):
+        assert "http://" not in client.get(path).text
+        assert "https://" not in client.get(path).text

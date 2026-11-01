@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 import torch
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
 
 from dragonscope.session import DemoSession, SessionError, guide
 from dragonscope.train import load_model
@@ -25,6 +26,7 @@ from dragonscope.vendor.bdh.bdh import BDH
 
 logger = logging.getLogger("dragonscope.server")
 MAX_MESSAGE_BYTES = 4096
+STATIC_DIR = Path(__file__).parent / "static"
 # Fastest in a test on the demo laptop: 17 ms a byte, against 23 ms at the default
 # of 10 threads and 25 ms at 1.
 CPU_THREADS = 4
@@ -126,6 +128,8 @@ def create_app(model: BDH) -> FastAPI:
                 {"type": "error", "code": "internal", "message": "Something went wrong."}
             )
 
+    # Last, so that it does not shadow the routes above.
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
     return app
 
 
@@ -134,8 +138,10 @@ def main() -> None:
     parser.add_argument("--model", type=Path, default=Path("models/best_model.pt"))
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
+    app = create_app(load_model(args.model))
+    print(f"DragonScope is running at http://127.0.0.1:{args.port}", flush=True)
     uvicorn.run(
-        create_app(load_model(args.model)),
+        app,
         host="127.0.0.1",
         port=args.port,
         access_log=False,
