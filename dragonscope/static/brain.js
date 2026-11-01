@@ -11,7 +11,6 @@ const brain = (() => {
   const PATHS = 60;
   const canvas = document.getElementById("brain");
   const wrap = document.getElementById("brain-wrap");
-  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // The outline. A direction from the centre gives a point on the folded surface.
 
@@ -248,7 +247,7 @@ const brain = (() => {
   function animate(now) {
     const dt = Math.min(0.1, (now - previous) / 1000);
     previous = now;
-    if (!dragging && !reduceMotion) yaw += dt * 0.09;
+    if (!dragging) yaw += dt * 0.09;
     group.rotation.set(pitch, yaw, 0);
 
     // Quick enough that each character's neurons can be told from the next ones.

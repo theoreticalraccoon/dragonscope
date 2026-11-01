@@ -137,10 +137,6 @@ function startPlayback() {
     total: replyLength,
   };
   const isQuestion = Boolean(state.last_answer);
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    finishPlayback(recallRun, isQuestion);
-    return;
-  }
   playback = {
     frames,
     index: 0,

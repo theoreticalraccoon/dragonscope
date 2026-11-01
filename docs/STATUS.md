@@ -30,6 +30,8 @@ Two simpler signals failed and were dropped, so do not bring them back. The shar
 
 Limits: `depends` compares the model with and without **all** flagged data, not one value. A digit can score low when the model would have guessed the same digit anyway. After Forget it is 0 because nothing flagged remains to remove, so it is not separate evidence of erasure.
 
+**The page ignores the reduced-motion preference, on purpose.** This laptop has Windows animations off, which browsers report as `prefers-reduced-motion`. Honouring it skipped all firing and rotation, and test browsers override it, so tests did not show this. The motion is the exhibit, so it always runs. Test with `reduced_motion="reduce"` as well.
+
 Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, activity frames were dropped after playing, there were no console errors, and the page requested nothing from outside 127.0.0.1. It held 60 frames a second in Edge on the laptop's Iris Xe GPU, and about 35 in Opera GX, the owner's default browser. Use Edge at the booth, or check GX Control's limits first. **Keep hardware acceleration on in the browser:** with software rendering it fell to about 10 to 16 frames a second and competed with the model for CPU, stalling replies for over a minute. Nobody has yet run it with Wi-Fi off or seen it on a booth screen.
 
 ## Backend
