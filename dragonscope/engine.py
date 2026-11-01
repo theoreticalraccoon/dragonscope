@@ -181,14 +181,54 @@ class SessionMemory:
             self.rebuild()
         return positions
 
+    @torch.no_grad()
     def rebuild(self) -> None:
-        """Recompute ``rho`` and the ledger from surviving bytes at their positions."""
+        """Recompute ``rho`` and the ledger from surviving bytes at their positions.
+
+        This runs each layer over all bytes at once, like ``BDH.forward`` but with
+        the original positions, which is many times faster than stepping byte by
+        byte. ``residual_from_replay`` still steps, so it checks this independently.
+        """
         survivors = sorted(self.bytes.items())
         position = self.position
         self.reset()
-        for original_position, byte in survivors:
-            self._step(byte, original_position)
         self.position = position
+        if not survivors:
+            return
+
+        model = self.model
+        device = self.rho.device
+        count = len(survivors)
+        positions = torch.tensor(
+            [p for p, _ in survivors], device=device, dtype=model.attn.freqs.dtype
+        ).view(1, 1, -1, 1)
+        index = torch.tensor([[byte for _, byte in survivors]], device=device)
+        x = model.ln(model.embed(index).unsqueeze(1))  # 1, 1, T, D
+        phases = positions * model.attn.freqs
+        all_v = []
+        all_qr = []
+
+        for level in range(self.n_layer):
+            x_sparse = F.relu(x @ model.encoder)  # 1, nh, T, N
+            qr = Attention.rope(phases, x_sparse)
+            attention = (qr @ qr.mT).tril(diagonal=-1) @ x
+            self.rho[level] = x[0, 0].T @ qr[0]
+            all_v.append(x[0, 0])
+            all_qr.append(qr[0])
+
+            y_sparse = F.relu(model.ln(attention) @ model.encoder_v)
+            y_mlp = (x_sparse * y_sparse).transpose(1, 2).reshape(
+                1, 1, count, self.N * self.n_head
+            ) @ model.decoder
+            x = model.ln(x + model.ln(y_mlp))
+
+        v = torch.stack(all_v)  # n_layer, T, D
+        qr = torch.stack(all_qr)  # n_layer, nh, T, N
+        for slot, (original_position, byte) in enumerate(survivors):
+            self.bytes[original_position] = byte
+            self.ledger[original_position] = LedgerEntry(
+                v=v[:, slot].clone(), qr=qr[:, :, slot].clone()
+            )
 
     def residual_from_replay(self) -> dict[str, list[float] | float]:
         """Compare ``rho`` with a clean rebuild of the surviving bytes.

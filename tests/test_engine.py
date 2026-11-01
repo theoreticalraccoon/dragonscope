@@ -96,8 +96,39 @@ def test_replay_matches_a_session_that_never_saw_the_secret(model):
     for position, byte in enumerate(TEXT):
         if not SECRET_START <= position < SECRET_END:
             never_saw._step(byte, position)
-    assert (session.rho - never_saw.rho).abs().max().item() < 1e-5
+    # Rebuild adds in a different order, so large entries differ by float rounding.
+    assert (session.rho - never_saw.rho).abs().max().item() < 1e-4
     assert session.residual_from_replay()["total"] < 1e-5
+
+
+def test_rebuild_matches_stepping_byte_by_byte(model):
+    session = SessionMemory(model)
+    session.read(TEXT)
+    session.forget(SECRET_START, SECRET_END, "replay")
+
+    stepped = SessionMemory(model)
+    for position, byte in enumerate(TEXT):
+        if not SECRET_START <= position < SECRET_END:
+            stepped._step(byte, position)
+    stepped.position = len(TEXT)
+
+    assert session.ledger.keys() == stepped.ledger.keys()
+    assert session.bytes == stepped.bytes
+    for position, entry in stepped.ledger.items():
+        assert (session.ledger[position].v - entry.v).abs().max().item() < 1e-4
+        assert (session.ledger[position].qr - entry.qr).abs().max().item() < 1e-4
+    assert (session.ledger_sum() - session.rho).abs().max().item() < 1e-3
+    logits = session.read(b"What")
+    assert (logits - stepped.read(b"What")).abs().max().item() < 1e-3
+
+
+def test_rebuilding_an_empty_session_keeps_its_position(model):
+    session = SessionMemory(model)
+    session.read(b"abc")
+    session.forget(0, 3, "replay")
+    assert session.position == 3
+    assert session.rho.abs().sum().item() == 0
+    assert session.ledger == {}
 
 
 def test_subtract_is_exact_at_layer_zero_and_reports_deeper_residual(model):

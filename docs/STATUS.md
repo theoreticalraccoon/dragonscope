@@ -1,8 +1,24 @@
 # Status
 
-Last updated: Sun Nov 1, 2026, afternoon. Update this before ending any session.
+Last updated: Sun Nov 1, 2026, evening. Update this before ending any session.
 
-The project is ahead of schedule: the Day 1 gates, the card and NIC part of the Day 2 recall gate, and the Tuesday Forget go/no-go are all done. **Next is the backend (Tuesday's build).**
+The project is ahead of schedule: the Day 1 gates, the card and NIC part of the Day 2 recall gate, the Tuesday Forget go/no-go and the Tuesday backend are all done. **Next is the dashboard (Wednesday's build), against [PROTOCOL.md](PROTOCOL.md).**
+
+## Backend
+
+`python -m dragonscope.server` serves one session at `ws://127.0.0.1:8000/ws`. `python scripts/booth_check.py --runs 20` runs the booth flow over a real WebSocket on the trained model.
+
+**Measured: 30 of 30 clean runs**, half forgetting a card and half a NIC. In each run the secret was recalled before Forget and refused after it, the other fields checked were kept, and the secret was in no WebSocket frame after Forget. Forget took 0.78 s on average and 0.90 s at worst, on battery. The residual after `subtract` was 3.1 to 5.5%, and a byte-by-byte replay confirmed 0 after the rebuild.
+
+How it handles the limits below:
+
+- **Guided chat only.** There is no free-text message. `say` and `ask` use trained wordings, name and branch come from `split_names("train")`, and an invalid value is refused before the model reads it.
+- **Every copy goes.** Forget erases each copy of the value in any format, plus any number in a model reply that is not exactly another value the visitor stated. A reply's flagged span runs from its first digit to its last, once it has 4 or more digits, so garbled echoes are caught. Unit tests use scripted garbled replies, because the booth runs only produced exact echoes.
+- **One value per field, per session.** Restating a card after Forget recalled exactly in only 13 of 20 tries, so a new value needs a reset.
+- **Session limit of 400 positions.** Forget does not free positions, and replies get less reliable as a session grows. In 20 runs with a 440 limit, one reply at byte 406 got two card digits wrong. In 60 longer sessions, replies ending at bytes 480 to 519 were 93% correct, and those at 600 to 639 were 61% correct. The limit fits four statements, one ask, Forget, a re-ask and at least one other question, and no run in the 30 above gave a wrong reply.
+- **Rebuild is now batched.** Stepping byte by byte took about 10 s per Forget on battery, including its check. `SessionMemory.rebuild` now runs each layer over all bytes at once, and `test_rebuild_matches_stepping_byte_by_byte` guards it.
+
+Forget's reach: positions and findings hold no values, so `SessionMemory` is the only server copy, and the deletion log stores only type, last 4 digits and time. Python does not overwrite freed memory, so erased bytes may stay in process RAM until reused. Do not claim otherwise. The dashboard must keep no copy of earlier `state` messages.
 
 ## Model
 
@@ -45,13 +61,12 @@ Results are in `docs/forget_eval_500.json`. Reproduce with `python -m dragonscop
 
 ## Performance on the demo laptop
 
-Reading or writing takes 5 to 6 ms a byte, so replies are instant. The ledger is about 66 KB a byte in memory.
+Reading or writing took 17 ms a byte at 4 threads, on battery on Balanced power, and the server uses that setting. Earlier runs measured 5 to 6 ms, probably on mains power, but this has not been compared directly. Replies take under a second either way. The ledger is about 66 KB a byte in memory. **Keep the laptop plugged in at the booth.**
 
 ## Next
 
-1. Backend, per the requirements in PLAN.md: FastAPI and WebSocket server around `SessionMemory`, card and NIC detection on input and replies, Forget as `subtract` then `rebuild()` across all copies, and an in-memory deletion log.
-2. Define the message format early so the dashboard can be built against it.
-3. Dashboard (Wednesday's build).
+1. Dashboard (Wednesday's build): guided chat, D3 graph from `memory.neurons`, red alert from flagged segments, Forget button, "ask it again", proof panel, reset. Bundle D3 locally. The server does not serve static files yet, so add that with it.
+2. Rehearse on Thursday: 20 clean offline runs in a row, with Wi-Fi off and the laptop plugged in.
 
 ## Known design points
 

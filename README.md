@@ -21,6 +21,10 @@ Training resumes from `latest.pt` if you rerun the same command. On a CPU it is 
 |---|---|
 | `dragonscope/engine.py` | Stateful inference, the memory matrix `rho`, and Forget |
 | `dragonscope/data.py` | Synthetic conversation generator |
+| `dragonscope/detect.py` | Card and NIC detection in statements and replies |
+| `dragonscope/session.py` | Guided chat, flagged values and Forget for one session |
+| `dragonscope/server.py` | FastAPI and WebSocket server, using `docs/PROTOCOL.md` |
+| `scripts/booth_check.py` | Runs the booth flow over a real WebSocket |
 | `dragonscope/train.py` | Resumable training and exact-recall evaluation |
 | `dragonscope/vendor/bdh/` | Unmodified upstream BDH, with its licence |
 | `docs/PLAN.md` | Schedule, pass marks and fallbacks |
