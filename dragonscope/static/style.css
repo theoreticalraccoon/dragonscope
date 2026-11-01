@@ -50,6 +50,7 @@ header strong { font-weight: 600; }
 .steps li.current { color: var(--white); font-weight: 600; }
 
 .link { padding: 4px 0; border: 0; background: none; color: var(--dim); cursor: pointer; }
+a.link { text-decoration: none; }
 .link:hover:not(:disabled) { color: var(--white); }
 .link.strong { color: var(--white); font-weight: 600; }
 .link.current { color: var(--white); text-decoration: underline; text-underline-offset: 5px; }

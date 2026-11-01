@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How BDH Works</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="bdh.css">
+</head>
+<body>
+  <header>
+    <strong>The Dragon Hatchling</strong>
+    <span class="dim">How a BDH model works</span>
+    <a href="index.html">Back to the DragonScope demo</a>
+  </header>
+
+  <main>
+    <section class="story">
+      <h1>Its memory is in its connections.</h1>
+      <p class="lead">BDH is a language model built from neurons and synapses. Its learned weights stay fixed as it reads. What it remembers is held in synapses that strengthen when neurons fire together.</p>
+
+      <ol class="stages" id="stages">
+        <li data-stage="read">
+          <b>Read</b>
+          <span>The next character becomes the input signal.</span>
+        </li>
+        <li data-stage="fire">
+          <b>Fire</b>
+          <span>The signal excites some neurons. Activity is positive, and the rest stay silent.</span>
+          <code>x = relu(signal · E)</code>
+        </li>
+        <li data-stage="wire">
+          <b>Wire together</b>
+          <span>Neurons that passed a signal strengthen their links to neurons that fire next.</span>
+          <code>σ(i, j) += y(i) · x(j)</code>
+        </li>
+        <li data-stage="recall">
+          <b>Recall</b>
+          <span>Firing neurons query that memory, which returns what earlier characters stored there.</span>
+          <code>y = relu(LN(ρ · x) · Eᵥ)</code>
+        </li>
+        <li data-stage="pass">
+          <b>Pass it on</b>
+          <span>Only neurons both excited and recalled send a signal to the next round.</span>
+          <code>signal = LN(signal + LN((x ⊙ y) · D))</code>
+        </li>
+      </ol>
+
+      <p class="live-note" id="live-note"></p>
+
+      <div class="controls">
+        <button class="primary" id="play" type="button">Pause</button>
+        <button id="step" type="button">Next step</button>
+        <button id="restart" type="button">Start again</button>
+        <label class="text-entry">
+          <span class="dim">It reads</span>
+          <input id="text" maxlength="40" spellcheck="false" autocomplete="off" value="neurons that fire together wire together">
+        </label>
+      </div>
+    </section>
+
+    <section class="network">
+      <div class="readings">
+        <div class="reading"><b id="r-char">–</b><span>reading now</span></div>
+        <div class="reading"><b id="r-round">–</b><span>round, of 3 per character</span></div>
+        <div class="reading"><b id="r-fire">0</b><span>of 128 neurons firing</span></div>
+        <div class="reading"><b id="r-links">0</b><span>synapses strengthened</span></div>
+        <div class="reading fixed"><b>0</b><span>learned weights changed</span></div>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="net" role="img" aria-label="128 neurons in four groups. They light up as they fire, and lines between them grow as synapses strengthen."></canvas>
+        <ul class="legend">
+          <li><i class="fire"></i>Fired</li>
+          <li><i class="recall"></i>Recalled</li>
+          <li><i class="pass"></i>Passed it on</li>
+          <li><i class="synapse"></i>Synapse</li>
+        </ul>
+      </div>
+
+      <p class="note"><strong>This is a real BDH, calculated live in your browser, but a tiny untrained one.</strong> With random weights it reads without understanding, so it shows the mechanism and not language skill. Its equations match the published code, without the rotation by position in the formulas shown. The four arcs are its heads. Synapses are drawn from the paper's σ rule; the code keeps them in a compressed form, ρ.</p>
+
+      <table>
+        <thead><tr><th></th><th>Rounds</th><th>Heads</th><th>Neurons</th><th>Learned weights</th></tr></thead>
+        <tbody>
+          <tr><th>Here</th><td>3</td><td>4</td><td>128</td><td id="toy-weights">–</td></tr>
+          <tr><th>DragonScope demo</th><td>4</td><td>4</td><td>4,096</td><td>1.6 million</td></tr>
+          <tr><th>Published code's default</th><td>6</td><td>4</td><td>32,768</td><td>25.3 million</td></tr>
+        </tbody>
+      </table>
+      <p class="source">Source: Kosowski et al., “The Dragon Hatchling: The Missing Link between the Transformer and Models of the Brain”, Pathway, 2025, arXiv:2509.26507. The code is MIT licensed, from pathwaycom/bdh.</p>
+    </section>
+  </main>
+
+  <script src="bdh.js"></script>
+</body>
+</html>
