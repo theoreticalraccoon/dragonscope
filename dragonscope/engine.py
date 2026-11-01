@@ -70,6 +70,33 @@ class SessionMemory:
         self.ledger: dict[int, LedgerEntry] = {}
         self.next_logits: torch.Tensor | None = None
 
+    def fork(self) -> "SessionMemory":
+        """Return an independent copy, so one history can try several continuations."""
+        other = SessionMemory(self.model)
+        other.rho = self.rho.clone()
+        other.position = self.position
+        other.bytes = dict(self.bytes)
+        other.ledger = dict(self.ledger)  # Entries are never changed in place.
+        other.next_logits = (
+            None if self.next_logits is None else self.next_logits.clone()
+        )
+        return other
+
+    def text(self) -> bytes:
+        """Return surviving bytes in order; forgotten positions are simply absent."""
+        return bytes(byte for _, byte in sorted(self.bytes.items()))
+
+    def find_positions(self, value: bytes) -> list[tuple[int, int]]:
+        """Return the ``(start, end)`` of each contiguous occurrence of ``value``."""
+        spans = []
+        for start in range(self.position - len(value) + 1):
+            if all(
+                self.bytes.get(start + offset) == byte
+                for offset, byte in enumerate(value)
+            ):
+                spans.append((start, start + len(value)))
+        return spans
+
     @torch.no_grad()
     def _step(self, byte: int, position: int) -> torch.Tensor:
         """Mirror one position of ``BDH.forward`` using ``rho`` as attention."""
