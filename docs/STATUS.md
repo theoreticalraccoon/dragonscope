@@ -12,7 +12,7 @@ The project is ahead of schedule: the Day 1 gates, the card and NIC part of the 
 
 - **Dots:** one per real neuron. The 4 regions are the 4 heads.
 - **Position:** from learned weights (`model_facts` in `dragonscope/activity.py`). Each neuron's firing for every text character gives its tuning, and the two main axes of tuning place it. Measured: similarity to the 5 nearest neighbours is 0.43, against 0.25 to 0.29 for all pairs.
-- **Firing:** the strongest 300 of those firing in each round, from the tensors that compute the reply. The counter shows the true total. The page plays this back slowed down and says so.
+- **Firing:** the strongest 300 of those firing in each round, from the tensors that compute the reply. All 300 light up, with brightness compressed so that weaker ones stay visible. The counter shows the true total. The page plays this back at 75 ms a byte for reading and 110 ms for writing, and says it is slowed down.
 - **Lines:** the strongest learned connections, `decoder[i] . encoder[j]`, between neurons firing in consecutive rounds. They are model weights, not `rho`.
 - **Red:** the share of each neuron's memory that comes from flagged data. Shares run from 0 to 0.99 with a median of 0.19 when a card is 21% of the session, so it is spread across many neurons rather than stored in one place. Neurons under a 25% share stay unlit, so the display is thresholded.
 - **Illustrative only:** the brain outline and its folds, and the glow's size and colour. There is no brain stem or cerebellum, by the owner's choice. The shell's pulse follows the real firing count and `depends`, and the page says the outline is an illustration.
@@ -30,7 +30,7 @@ Two simpler signals failed and were dropped, so do not bring them back. The shar
 
 Limits: `depends` compares the model with and without **all** flagged data, not one value. A digit can score low when the model would have guessed the same digit anyway. After Forget it is 0 because nothing flagged remains to remove, so it is not separate evidence of erasure.
 
-Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, activity frames were dropped after playing, there were no console errors, and the page requested nothing from outside 127.0.0.1. It held 60 frames a second on the laptop's Iris Xe GPU. **Keep hardware acceleration on in the browser:** with software rendering it fell to about 10 to 16 frames a second and competed with the model for CPU, stalling replies for over a minute. Nobody has yet run it with Wi-Fi off or seen it on a booth screen.
+Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, activity frames were dropped after playing, there were no console errors, and the page requested nothing from outside 127.0.0.1. It held 60 frames a second in Edge on the laptop's Iris Xe GPU, and about 35 in Opera GX, the owner's default browser. Use Edge at the booth, or check GX Control's limits first. **Keep hardware acceleration on in the browser:** with software rendering it fell to about 10 to 16 frames a second and competed with the model for CPU, stalling replies for over a minute. Nobody has yet run it with Wi-Fi off or seen it on a booth screen.
 
 ## Backend
 

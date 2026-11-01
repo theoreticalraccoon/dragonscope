@@ -8,7 +8,7 @@
 // reported activity, so the brain rests between messages.
 
 const brain = (() => {
-  const PATHS = 180;
+  const PATHS = 60;
   const canvas = document.getElementById("brain");
   const wrap = document.getElementById("brain-wrap");
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -92,8 +92,8 @@ const brain = (() => {
         vec3 tint = mix(cool, hot, uHeat);
         // Folds catch the light and grooves stay dark, as on a real cortex.
         float fold = smoothstep(-0.35, 0.75, vRidge);
-        float strength = fold * (0.05 + light * 0.1 + uPulse * 0.07 + uHeat * 0.1)
-          + rim * (0.14 + uPulse * 0.28 + uHeat * 0.3);
+        float strength = fold * (0.05 + light * 0.1 + uPulse * 0.03 + uHeat * 0.06)
+          + rim * (0.14 + uPulse * 0.12 + uHeat * 0.22);
         gl_FragColor = vec4(tint * strength + vec3(uFlash) * rim * 0.5, 1.0);
       }`,
   });
@@ -150,7 +150,7 @@ const brain = (() => {
         vec4 view = modelViewMatrix * vec4(position, 1.0);
         float near = clamp(1.05 - (-view.z - (uCamera - 1.0)) * 0.38, 0.3, 1.0);
         float lit = max(aFire, aRed);
-        float size = 4.2 + aStored * 3.0 + lit * 17.0;
+        float size = 4.2 + aStored * 3.0 + lit * 22.0;
         gl_PointSize = size * uPixels * (uCamera / -view.z);
         vec3 rest = vec3(0.34, 0.5, 0.86);
         vec3 stored = vec3(0.7, 0.82, 1.0);
@@ -161,7 +161,7 @@ const brain = (() => {
         color = mix(color, hot, clamp(aRed * 1.8, 0.0, 1.0));
         vColor = color;
         vLit = lit;
-        vAlpha = clamp((0.42 + aStored * 0.45) * near + lit * 0.75, 0.0, 1.0);
+        vAlpha = clamp((0.42 + aStored * 0.45) * near + lit * 1.0, 0.0, 1.0);
         gl_Position = projectionMatrix * view;
       }`,
     fragmentShader: `
@@ -174,7 +174,7 @@ const brain = (() => {
         // A bright core inside a soft halo, so firing neurons look like they glow.
         float halo = pow(1.0 - d, 2.0);
         float core = smoothstep(0.3, 0.06, d) * (0.4 + vLit * 0.6);
-        gl_FragColor = vec4(vColor * (1.0 + core * 0.7) + vec3(core * vLit * 0.25), vAlpha * (halo * 0.6 + core));
+        gl_FragColor = vec4(vColor * (1.0 + core * 0.7) + vec3(core * vLit * 0.4), vAlpha * (halo * 0.7 + core));
       }`,
   });
 
@@ -251,7 +251,8 @@ const brain = (() => {
     if (!dragging && !reduceMotion) yaw += dt * 0.09;
     group.rotation.set(pitch, yaw, 0);
 
-    const fireDecay = Math.exp(-dt / 0.38);
+    // Quick enough that each character's neurons can be told from the next ones.
+    const fireDecay = Math.exp(-dt / 0.2);
     const recallDecay = Math.exp(-dt / 0.6);
     const settle = 1 - Math.exp(-dt / 0.5);
     for (let index = 0; index < count; index += 1) {
@@ -279,7 +280,7 @@ const brain = (() => {
     const pathDecay = Math.exp(-dt / 0.28);
     for (let slot = 0; slot < PATHS; slot += 1) {
       pathLife[slot] *= pathDecay;
-      const life = pathLife[slot] * 0.55;
+      const life = pathLife[slot] * 0.22;
       const r = pathHot[slot] ? 1.0 : 0.45;
       const g = pathHot[slot] ? 0.28 : 0.85;
       const b = pathHot[slot] ? 0.2 : 1.0;
@@ -342,7 +343,8 @@ const brain = (() => {
       frame.fired.forEach((round, level) => {
         setTimeout(() => {
           round.i.forEach((index, slot) => {
-            fire[index] = Math.max(fire[index], round.s[slot] ** 2.2);
+            // Every reported neuron did fire, so even the weakest must be seen.
+            fire[index] = Math.max(fire[index], 0.5 + 0.5 * round.s[slot]);
           });
           const links = frame.links[level - 1];
           if (links) links.forEach(([from, to]) => addPath(from, to, frame.depends > 0.5));

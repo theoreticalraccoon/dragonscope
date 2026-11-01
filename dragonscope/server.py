@@ -33,6 +33,15 @@ STATIC_DIR = Path(__file__).parent / "static"
 CPU_THREADS = 4
 
 
+class UncachedFiles(StaticFiles):
+    """Stop a browser from running old scripts against a newer server."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+
 def _same_origin(websocket: WebSocket) -> bool:
     """Stop other web pages in the browser from connecting to the local session."""
     origin = websocket.headers.get("origin")
@@ -136,7 +145,7 @@ def create_app(model: BDH) -> FastAPI:
             )
 
     # Last, so that it does not shadow the routes above.
-    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+    app.mount("/", UncachedFiles(directory=STATIC_DIR, html=True), name="static")
     return app
 
 

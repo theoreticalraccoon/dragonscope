@@ -110,6 +110,7 @@ def test_health(client):
 def test_page_and_its_files_are_served_locally(client):
     page = client.get("/")
     assert page.status_code == 200
+    assert page.headers["cache-control"] == "no-store"
     assert "DragonScope" in page.text
     for path in ("style.css", "app.js", "brain.js", "vendor/three.min.js"):
         assert client.get(f"/{path}").status_code == 200

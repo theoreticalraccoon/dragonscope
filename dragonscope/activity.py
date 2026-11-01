@@ -25,7 +25,7 @@ from dragonscope.vendor.bdh.bdh import BDH
 TOP_FIRED = 300  # Strongest firing neurons reported per round. About 880 fire.
 TOP_FLAGGED = 48
 LINK_CANDIDATES = 48  # Strongest neurons considered at each end of a connection.
-TOP_LINKS = 8
+TOP_LINKS = 3
 
 
 def _top(values: torch.Tensor, count: int) -> dict[str, list]:

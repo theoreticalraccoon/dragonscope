@@ -143,4 +143,4 @@ Codes: `invalid_value`, `already_stated`, `session_full`, `unknown_field`, `unkn
 
 ## Timing
 
-Replies arrive as a whole, not byte by byte. On the demo laptop on battery, an exchange takes about 0.9 s and Forget about 0.8 s. The page then plays the activity back slowed down, over about 3 seconds, and says so.
+Replies arrive as a whole, not byte by byte. On the demo laptop on battery, an exchange takes about 0.9 s and Forget about 0.8 s. The page then plays the activity back slowed down, over about 4 to 7 seconds, and says so.

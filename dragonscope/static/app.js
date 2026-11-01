@@ -9,8 +9,8 @@ const $ = (id) => document.getElementById(id);
 
 const FIELD_LABELS = { card: "Card", nic: "NIC", name: "Name", branch: "Branch" };
 const KIND_WORDS = { card: "card", nic: "NIC", number: "number" };
-const READ_MS = 38; // Time per byte when playing back. The model itself is faster.
-const WRITE_MS = 80;
+const READ_MS = 75; // Time per byte when playing back. The model itself is faster.
+const WRITE_MS = 110;
 
 let socket = null;
 let guide = null;
