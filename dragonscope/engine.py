@@ -209,19 +209,6 @@ class SessionMemory:
                 v=v[:, slot].clone(), qr=qr[:, :, slot].clone()
             )
 
-    @torch.no_grad()
-    def logits_without(self, excluded: set[int]) -> dict[int, torch.Tensor]:
-        """Return next-byte logits per position, as if ``excluded`` were never read.
-
-        This changes nothing in the session. Comparing it with ``excluded`` empty
-        shows what the model's output owes to those bytes.
-        """
-        survivors = [item for item in sorted(self.bytes.items()) if item[0] not in excluded]
-        if not survivors:
-            return {}
-        logits, *_ = self._forward_all(survivors)
-        return {position: logits[slot] for slot, (position, _) in enumerate(survivors)}
-
     def _forward_all(self, survivors: list[tuple[int, int]]):
         """Run all ``(position, byte)`` pairs at once and return logits, rho, v and qr."""
         model = self.model

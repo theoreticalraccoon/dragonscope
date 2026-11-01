@@ -20,6 +20,7 @@
     </ol>
     <span class="dim" id="connection" hidden>Reconnecting…</span>
     <span class="dim fake-note">Prototype. Fake numbers only.</span>
+    <button class="link" id="speed" type="button"></button>
     <button class="link" id="reset" type="button">Reset</button>
   </header>
 
@@ -57,7 +58,7 @@
         <canvas id="brain" role="img" aria-label="A glass brain holding the model's real neurons. Neurons light up as they fire, and those holding private data are red."></canvas>
         <ul class="legend">
           <li><span class="swatch fire"></span>Firing now</li>
-          <li><span class="swatch hot"></span>Holds or recalls your private data</li>
+          <li><span class="swatch hot"></span>Changed by your private data</li>
         </ul>
         <div class="readout" id="readout" hidden>
           <p class="readout-label" id="readout-label"></p>
@@ -65,7 +66,7 @@
         </div>
       </div>
       <div id="proof"></div>
-      <p class="dim caption">Every dot is one of the model's real neurons, and neighbours respond to similar characters. Its 4 regions are the model's 4 heads. Lines are its strongest learned connections between firing neurons. The activity is real and slowed down; the brain outline is an illustration. Drag to turn it.</p>
+      <p class="dim caption">Running live. Every dot is one of the model's real neurons, brighter when it fires harder. Red shows how much your private data changes its firing, measured against a copy of memory without that data. Neighbours respond to similar characters, and the 4 regions are the model's 4 heads. Lines are its strongest learned connections in use. The brain outline is an illustration. Drag to turn it.</p>
     </section>
   </main>
 

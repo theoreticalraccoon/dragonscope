@@ -55,7 +55,7 @@ const brain = (() => {
 
   // The glass shell
 
-  const shellUniforms = { uPulse: { value: 0 }, uHeat: { value: 0 }, uFlash: { value: 0 } };
+  const shellUniforms = { uPulse: { value: 0 }, uHeat: { value: 0 } };
   const shellMaterial = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -77,7 +77,6 @@ const brain = (() => {
     fragmentShader: `
       uniform float uPulse;
       uniform float uHeat;
-      uniform float uFlash;
       varying vec3 vNormal;
       varying vec3 vView;
       varying float vRidge;
@@ -91,9 +90,9 @@ const brain = (() => {
         vec3 tint = mix(cool, hot, uHeat);
         // Folds catch the light and grooves stay dark, as on a real cortex.
         float fold = smoothstep(-0.35, 0.75, vRidge);
-        float strength = fold * (0.05 + light * 0.1 + uPulse * 0.03 + uHeat * 0.06)
-          + rim * (0.14 + uPulse * 0.12 + uHeat * 0.22);
-        gl_FragColor = vec4(tint * strength + vec3(uFlash) * rim * 0.5, 1.0);
+        float strength = fold * (0.05 + light * 0.1 + uPulse * 0.02 + uHeat * 0.02)
+          + rim * (0.14 + uPulse * 0.1 + uHeat * 0.1);
+        gl_FragColor = vec4(tint * strength, 1.0);
       }`,
   });
 
@@ -149,7 +148,7 @@ const brain = (() => {
         vec4 view = modelViewMatrix * vec4(position, 1.0);
         float near = clamp(1.05 - (-view.z - (uCamera - 1.0)) * 0.38, 0.3, 1.0);
         float lit = max(aFire, aRed);
-        float size = 4.2 + aStored * 3.0 + lit * 22.0;
+        float size = 4.2 + aStored * 3.0 + lit * lit * 30.0;
         gl_PointSize = size * uPixels * (uCamera / -view.z);
         vec3 rest = vec3(0.34, 0.5, 0.86);
         vec3 stored = vec3(0.7, 0.82, 1.0);
@@ -160,7 +159,7 @@ const brain = (() => {
         color = mix(color, hot, clamp(aRed * 1.8, 0.0, 1.0));
         vColor = color;
         vLit = lit;
-        vAlpha = clamp((0.42 + aStored * 0.45) * near + lit * 1.0, 0.0, 1.0);
+        vAlpha = clamp((0.42 + aStored * 0.45) * near + lit * 0.9, 0.0, 1.0);
         gl_Position = projectionMatrix * view;
       }`,
     fragmentShader: `
@@ -260,9 +259,7 @@ const brain = (() => {
       heldNow[index] += (heldGoal[index] - heldNow[index]) * settle;
       storedNow[index] += (storedGoal[index] - storedNow[index]) * settle;
       fireOut[index] = fire[index];
-      // Neurons with little flagged data stay unlit, so the red marks clear holders.
-      const held = Math.max(0, Math.min(1, (heldNow[index] - 0.25) / 0.6));
-      redOut[index] = Math.max(held * 0.5, recall[index]);
+      redOut[index] = Math.max(heldNow[index] * 0.5, recall[index]);
     }
     if (count) {
       fireAttribute.needsUpdate = true;
@@ -274,7 +271,6 @@ const brain = (() => {
     heatGoal *= Math.exp(-dt / 0.7);
     shellUniforms.uPulse.value += (pulseGoal - shellUniforms.uPulse.value) * (1 - Math.exp(-dt / 0.08));
     shellUniforms.uHeat.value += (heatGoal - shellUniforms.uHeat.value) * (1 - Math.exp(-dt / 0.12));
-    shellUniforms.uFlash.value *= Math.exp(-dt / 0.35);
 
     const pathDecay = Math.exp(-dt / 0.28);
     for (let slot = 0; slot < PATHS; slot += 1) {
@@ -337,37 +333,25 @@ const brain = (() => {
       }
     },
 
-    // Light up one byte's real activity, round by round, over ``duration`` ms.
-    fireFrame(frame, duration) {
-      frame.fired.forEach((round, level) => {
+    // Light up one byte's real activity, round by round, as it is computed.
+    fireFrame(frame) {
+      const decode = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+      frame.x.forEach((encoded, level) => {
+        const activation = decode(encoded);
+        const change = frame.change[level] ? decode(frame.change[level]) : null;
         setTimeout(() => {
-          round.i.forEach((index, slot) => {
-            // Every reported neuron did fire, so even the weakest must be seen.
-            fire[index] = Math.max(fire[index], 0.5 + 0.5 * round.s[slot]);
-          });
+          for (let index = 0; index < count; index += 1) {
+            // Square root for the eye: brighter always means firing harder.
+            if (activation[index]) fire[index] = Math.max(fire[index], Math.sqrt(activation[index] / 255));
+            if (change && change[index]) recall[index] = Math.max(recall[index], Math.min(1, (change[index] / 255) * 2));
+          }
           const links = frame.links[level - 1];
           if (links) links.forEach(([from, to]) => addPath(from, to, frame.depends > 0.5));
-        }, (level / frame.fired.length) * duration);
+        }, (level / frame.x.length) * frame.show_ms);
       });
       const firing = frame.counts.reduce((sum, value) => sum + value, 0) / frame.counts.length;
       pulseGoal = Math.min(1, (firing / count) * 2.5);
-      if (frame.depends > 0.05) {
-        heatGoal = Math.max(heatGoal, frame.depends);
-        frame.flagged.forEach((round) => {
-          round.i.forEach((index, slot) => {
-            recall[index] = Math.max(recall[index], round.s[slot] * frame.depends);
-          });
-        });
-      }
-    },
-
-    // The neurons holding the forgotten value flare as it is erased.
-    flareHeld() {
-      for (let index = 0; index < count; index += 1) {
-        if (heldNow[index] > 0.25) recall[index] = 1;
-      }
-      shellUniforms.uFlash.value = 0.5;
-      heatGoal = 1;
+      heatGoal = Math.max(heatGoal, frame.depends);
     },
   };
 })();

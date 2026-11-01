@@ -27,14 +27,8 @@ def session(model):
 
 def script(session, *replies):
     """Make the model write these replies, in order, through the real read path."""
-    queue = list(replies)
-
-    def generate(max_new_bytes, stop_byte=10):
-        written = queue.pop(0).encode("ascii")
-        session.memory.read(written)
-        return written
-
-    session.memory.generate = generate
+    queue = list("".join(replies).encode("ascii"))
+    session._choose_byte = lambda: queue.pop(0)
 
 
 def visible(session):
@@ -250,37 +244,54 @@ def test_forgotten_field_cannot_be_restated_until_reset(session):
     session.say("card", "5500 0000 0000 0004")
 
 
-def test_activity_has_one_frame_per_byte_and_is_handed_over_once(session):
+def test_a_frame_is_sent_live_for_every_byte(session):
+    frames = []
+    session.emit = frames.append
+    script(session, "Noted.\n")
     session.say("card", CARD)
-    before = session.memory.position
-    frames = session.take_activity()
-    assert len(frames) == before
+    assert len(frames) == session.memory.position
     assert frames[0]["phase"] == "read" and frames[-1]["phase"] == "write"
-    assert session.take_activity() is None
+    assert "".join(f["char"] for f in frames if f["phase"] == "read") == f"My card number is {CARD}."
+    assert "".join(f["char"] for f in frames if f["phase"] == "write") == "Noted."
     assert session.memory.observer is None
-    assert len(frames[0]["fired"]) == session.memory.n_layer
-    neurons = session.memory.n_head * session.memory.N
-    assert all(0 <= i < neurons for i in frames[0]["fired"][2]["i"])
-    assert all(count > 0 for count in frames[0]["counts"])
+    assert len(frames[0]["x"]) == session.memory.n_layer
     assert len(frames[0]["links"]) == session.memory.n_layer - 1
-    for round_links in frames[0]["links"]:
-        assert all(0 <= a < neurons and 0 <= b < neurons for a, b in round_links)
-    assert set(frames[0]) == {"phase", "fired", "counts", "links", "flagged", "depends"}
+    assert all(count > 0 for count in frames[0]["counts"])
 
 
-def test_activity_reports_flagged_neurons_only_while_something_is_flagged(session):
+def test_comparison_runs_only_while_something_is_flagged(session):
+    frames = []
+    session.emit = frames.append
     script(session, "Noted.\n", "Noted.\n", "Noted.\n", "Noted.\n")
     session.say("branch", split_names("train")[2][0])
-    frames = session.take_activity()
-    assert all(f["flagged"] == [] and f["depends"] == 0 for f in frames)
+    assert all(f["change"] == [] and f["depends"] == 0 for f in frames)
     session.say("card", CARD)
-    session.take_activity()
+    frames.clear()
     session.ask("name")
-    assert any(f["flagged"] for f in session.take_activity())
+    assert all(len(f["change"]) == session.memory.n_layer for f in frames)
     session.forget(flagged(session, "card").id)
+    frames.clear()
     session.ask("card")
-    frames = session.take_activity()
-    assert all(f["flagged"] == [] and f["depends"] == 0 for f in frames)
+    assert all(f["change"] == [] and f["depends"] == 0 for f in frames)
+
+
+def test_pacing_is_only_for_watching(session, monkeypatch):
+    slept = []
+    monkeypatch.setattr("dragonscope.session.time.sleep", slept.append)
+    monkeypatch.setattr("dragonscope.session.READ_PACE", 10.0)
+    monkeypatch.setattr("dragonscope.session.WRITE_PACE", 10.0)
+    session.emit = lambda frame: None
+    script(session, "Noted.\n", "Noted.\n")
+    session.say("branch", split_names("train")[2][0])
+    assert slept == []
+    session.paced = True
+    session.say("card", CARD)
+    assert slept
+    slept.clear()
+    session.full_speed = True
+    script(session, "Noted.\n")
+    session.say("nic", NIC)
+    assert slept == []
 
 
 def test_full_session_is_refused_before_reading(session):

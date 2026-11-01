@@ -31,6 +31,11 @@ from dragonscope.vendor.bdh.bdh import BDH
 SESSION_LIMIT = 400
 # The longest trained reply and its newline: a card with separators.
 REPLY_RESERVE = 41
+NEWLINE = 10
+# Time each byte is held when paced. Computing one, comparison included, took about
+# 45 to 85 ms on the demo laptop on battery with the page open.
+READ_PACE = 0.075
+WRITE_PACE = 0.11
 
 
 class SessionError(Exception):
@@ -103,6 +108,9 @@ def _check_value(field: str, value: str) -> str:
 class DemoSession:
     def __init__(self, model: BDH):
         self.memory = SessionMemory(model)
+        self.emit = None  # Called with each frame as it is computed. Keeps no copy.
+        self.paced = False  # Hold each byte long enough to watch it.
+        self.full_speed = False  # The visitor's choice to drop that pacing.
         self.reset()
 
     def reset(self) -> None:
@@ -112,7 +120,6 @@ class DemoSession:
         self.deletion_log: list[dict] = []
         self.stated: set[str] = set()
         self.last_answer: dict | None = None
-        self._activity: list[dict] | None = None
         self._next_id = 1
 
     # Chat
@@ -129,14 +136,14 @@ class DemoSession:
                 "already_stated", f"The {field} was already given. Reset to enter another."
             )
         value = _check_value(field, value)
-        self._exchange(STATEMENTS[field][0].format(value))
+        self._exchange(STATEMENTS[field][0].format(value), question=False)
         self.stated.add(field)
         self.last_answer = None
 
     def ask(self, field: str) -> None:
         """Ask for a field using its trained wording."""
         self._check_field(field)
-        reply = self._exchange(QUESTIONS[field][0])
+        reply = self._exchange(QUESTIONS[field][0], question=True)
         self.last_answer = {"field": field, "refused": reply == REFUSAL}
 
     @staticmethod
@@ -144,39 +151,49 @@ class DemoSession:
         if field not in FIELDS:
             raise SessionError("unknown_field", "Unknown field.")
 
-    def _exchange(self, line: str) -> str:
+    def _exchange(self, line: str, question: bool) -> str:
         memory = self.memory
         prompt = f"U: {line}\nA: ".encode("ascii")
         if memory.position + len(prompt) + REPLY_RESERVE > SESSION_LIMIT:
             raise SessionError("session_full", "This session is full. Please reset.")
 
-        recorder = ActivityRecorder(memory.model, memory.n_layer, self._flagged_rho())
-        flagged_before = self._flagged_positions()
-        first_position = memory.position
+        recorder = ActivityRecorder(memory.model, memory.n_layer)
+        shadow = self._counterfactual_memory()
         memory.observer = recorder
-        start = memory.position + len(b"U: ")
-        end = start + len(line)
-        memory.read(prompt)
-        self.turns.append(Turn("user", start, end))
-        for detection in find_stated(line):
-            self._add_finding(
-                detection.kind,
-                "user",
-                start + detection.start,
-                start + detection.end,
-                detection.luhn_valid,
-            )
+        if shadow is not None:
+            shadow.observer = recorder.watch_counterfactual
+        try:
+            start = memory.position + len(b"U: ")
+            end = start + len(line)
+            for position, byte in enumerate(prompt, start=memory.position):
+                shown = chr(byte) if start <= position < end else ""
+                self._compute_byte(byte, "read", shown, question, recorder, shadow)
+            self.turns.append(Turn("user", start, end))
+            for detection in find_stated(line):
+                self._add_finding(
+                    detection.kind,
+                    "user",
+                    start + detection.start,
+                    start + detection.end,
+                    detection.luhn_valid,
+                )
 
-        start = memory.position
-        recorder.phase = "write"
-        written = memory.generate(MAX_REPLY_BYTES)
-        if written.endswith(b"\n"):
-            written = written[:-1]
-        else:
-            memory.read(b"\n")
-        memory.observer = None
-        self._measure_dependence(recorder.frames, first_position, flagged_before)
-        self._activity = recorder.frames
+            start = memory.position
+            written = bytearray()
+            finished = False
+            for _ in range(MAX_REPLY_BYTES):
+                byte = self._choose_byte()
+                finished = byte == NEWLINE
+                shown = "" if finished else chr(byte) if byte < 128 else "\ufffd"
+                self._compute_byte(byte, "write", shown, question, recorder, shadow)
+                if finished:
+                    break
+                written.append(byte)
+            if not finished:
+                self._compute_byte(NEWLINE, "write", "", question, recorder, shadow)
+        finally:
+            memory.observer = None
+
         self.turns.append(Turn("assistant", start, start + len(written)))
         # latin-1 maps each byte to one character, so offsets stay byte positions.
         reply = written.decode("latin-1")
@@ -191,10 +208,62 @@ class DemoSession:
             )
         return reply
 
-    def take_activity(self) -> list[dict] | None:
-        """Return the last exchange's frames and keep no copy of them."""
-        activity, self._activity = self._activity, None
-        return activity
+    def _choose_byte(self) -> int:
+        """Greedy output, as in ``SessionMemory.generate``."""
+        return int(self.memory.next_logits.argmax())
+
+    def _counterfactual_memory(self) -> SessionMemory | None:
+        """Return a copy of memory that never read the flagged bytes, if any exist."""
+        positions = self._flagged_positions()
+        if not positions:
+            return None
+        shadow = self.memory.fork()
+        for position in positions:
+            shadow.forget(position, position + 1, "subtract")
+        shadow.rebuild()
+        return shadow
+
+    def _compute_byte(
+        self,
+        byte: int,
+        phase: str,
+        shown: str,
+        question: bool,
+        recorder: ActivityRecorder,
+        shadow: SessionMemory | None,
+    ) -> None:
+        """Compute one byte for real, then report it at once, paced if asked."""
+        memory = self.memory
+        chosen_from = memory.next_logits
+        without_from = None if shadow is None else shadow.next_logits
+        started = time.perf_counter()
+        if shadow is not None:
+            shadow.read(bytes([byte]))
+        memory.read(bytes([byte]))
+        computed = time.perf_counter() - started
+
+        depends = 0.0
+        if phase == "write" and without_from is not None:
+            p_with = chosen_from.softmax(dim=0)[byte]
+            p_without = without_from.softmax(dim=0)[byte]
+            depends = round(max(0.0, float(p_with - p_without)), 3)
+        pace = 0.0
+        if self.paced and not self.full_speed:
+            pace = READ_PACE if phase == "read" else WRITE_PACE
+        frame = recorder.take_frame()
+        frame.update(
+            type="frame",
+            phase=phase,
+            char=shown,
+            question=question,
+            depends=depends,
+            ms=round(computed * 1000, 1),
+            show_ms=round(max(computed, pace) * 1000),
+        )
+        if self.emit is not None:
+            self.emit(frame)
+        if pace > computed:
+            time.sleep(pace - computed)
 
     def _flagged_positions(self) -> set[int]:
         return {
@@ -410,6 +479,7 @@ class DemoSession:
                 for finding in self.findings
             ],
             "stated": sorted(self.stated),
+            "full_speed": self.full_speed,
             "last_answer": self.last_answer,
             "deletion_log": [dict(entry) for entry in self.deletion_log],
             "memory": {

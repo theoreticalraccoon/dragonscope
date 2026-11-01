@@ -12,13 +12,15 @@ The project is ahead of schedule: the Day 1 gates, the card and NIC part of the 
 
 - **Dots:** one per real neuron. The 4 regions are the 4 heads.
 - **Position:** from learned weights (`model_facts` in `dragonscope/activity.py`). Each neuron's firing for every text character gives its tuning, and the two main axes of tuning place it. Measured: similarity to the 5 nearest neighbours is 0.43, against 0.25 to 0.29 for all pairs.
-- **Firing:** the strongest 300 of those firing in each round, from the tensors that compute the reply. All 300 light up, with brightness compressed so that weaker ones stay visible. The counter shows the true total. The page plays this back at 75 ms a byte for reading and 110 ms for writing, and says it is slowed down.
+- **Firing:** every neuron's real activation for each round, streamed live as each byte is computed. There is no recording or replay. By default, the server holds each byte for 75 ms when reading and 110 ms when writing so it can be watched, and "Speed: full" removes that. Brightness is the square root of activation, so it stays in order.
 - **Lines:** the strongest learned connections, `decoder[i] . encoder[j]`, between neurons firing in consecutive rounds. They are model weights, not `rho`.
-- **Red:** the share of each neuron's memory that comes from flagged data. Shares run from 0 to 0.99 with a median of 0.19 when a card is 21% of the session, so it is spread across many neurons rather than stored in one place. Neurons under a 25% share stay unlit, so the display is thresholded.
+- **Red at rest:** the share of each neuron's memory that comes from flagged data, with no threshold. Shares run from 0 to 0.99 with a median of 0.19 when a card is 21% of the session, so it is spread across many neurons rather than stored in one place.
+- **Red while active:** a second copy of memory that never read the flagged bytes runs alongside, and each neuron's red is how much its firing differs. This is causal. Over 10 sessions, final-round firing changed by 58% when writing the card's digits, against 4% when answering about the branch, with about 266 neurons changing by over 10% of the peak. The first round changes by exactly 0, as it depends only on the byte. This replaced an earlier indicative measure.
 - **Illustrative only:** the brain outline and its folds, and the glow's size and colour. There is no brain stem or cerebellum, by the owner's choice. The shell's pulse follows the real firing count and `depends`, and the page says the outline is an illustration.
-- **Not real activity:** the flare on Forget marks neurons that held the data, as a visual cue.
+- **Removed:** the flare on Forget, the red threshold, the boost to weak neurons, and replay.
+- **Cannot be made real:** which head sits in which brain region, and the brain shape. The model has neither.
 
-**The red letters are a measurement.** For each written byte, `depends` is how much of its probability disappears in a counterfactual run where the flagged bytes were never read. Over 15 sessions with a card and NIC stored:
+**The red letters are a measurement.** For each written byte, `depends` is how much of its probability disappears in the copy of memory that never read the flagged bytes. Over 15 sessions with a card and NIC stored:
 
 | Question | Digits written, mean `depends` | Share over 0.5 | Other bytes, mean `depends` |
 |---|---|---|---|
@@ -32,7 +34,7 @@ Limits: `depends` compares the model with and without **all** flagged data, not 
 
 **The page ignores the reduced-motion preference, on purpose.** This laptop has Windows animations off, which browsers report as `prefers-reduced-motion`. Honouring it skipped all firing and rotation, and test browsers override it, so tests did not show this. The motion is the exhibit, so it always runs. Test with `reduced_motion="reduce"` as well.
 
-Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, activity frames were dropped after playing, there were no console errors, and the page requested nothing from outside 127.0.0.1. It held 60 frames a second in Edge on the laptop's Iris Xe GPU, and about 35 in Opera GX, the owner's default browser. Use Edge at the booth, or check GX Control's limits first. **Keep hardware acceleration on in the browser:** with software rendering it fell to about 10 to 16 frames a second and competed with the model for CPU, stalling replies for over a minute. Nobody has yet run it with Wi-Fi off or seen it on a booth screen.
+Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, live frames were dropped when the state arrived, there were no console errors, and the page requested nothing from outside 127.0.0.1. It held 60 frames a second in Edge on the laptop's Iris Xe GPU, and about 35 in Opera GX, the owner's default browser. Use Edge at the booth, or check GX Control's limits first. **Keep hardware acceleration on in the browser:** with software rendering it fell to about 10 to 16 frames a second and competed with the model for CPU, stalling replies for over a minute. Nobody has yet run it with Wi-Fi off or seen it on a booth screen.
 
 ## Backend
 
@@ -91,7 +93,7 @@ Results are in `docs/forget_eval_500.json`. Reproduce with `python -m dragonscop
 
 ## Performance on the demo laptop
 
-Reading or writing took 17 ms a byte at 4 threads, on battery on Balanced power, and the server uses that setting. Earlier runs measured 5 to 6 ms, probably on mains power, but this has not been compared directly. Replies take under a second either way. The ledger is about 66 KB a byte in memory. **Keep the laptop plugged in at the booth.**
+With live frames and the comparison, a byte took about 45 to 85 ms on battery with the page open. The page shows this live. Before those were added, reading or writing took 17 ms a byte at 4 threads, on battery on Balanced power, and the server uses that setting. Earlier runs measured 5 to 6 ms, probably on mains power, but this has not been compared directly. Replies take under a second either way. The ledger is about 66 KB a byte in memory. **Keep the laptop plugged in at the booth.**
 
 ## Next
 

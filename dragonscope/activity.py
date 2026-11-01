@@ -4,107 +4,102 @@ The model has ``n_head * N`` neurons. Its encoder is shared by every layer, so a
 byte passes through the same neurons once per layer. These are called rounds here,
 as they are not separate sets of neurons.
 
-Each frame covers one byte. It holds, per round, the neurons that fired and the
-learned connections most used between them, plus the neurons where the byte's query
-meets flagged memory. ``depends`` is set afterwards by comparing the reply with a
-counterfactual run in which the flagged bytes were never read: it is how much of
-the probability of writing this byte disappears without them.
+A frame is sent live for each byte as the model computes it. For every round it
+holds every neuron's activation, how many neurons fired, how many passed a signal
+on, and the learned connections most used. When something is flagged, a second copy
+of memory that never read the flagged bytes runs alongside. ``change`` is how much
+each neuron's firing differs from that copy, which is what the flagged data caused.
 
-Frames hold no text. They are still sensitive: in the first round, which neurons
-fire depends only on the byte, so a frame could be mapped back to it. They are sent
-once and never stored by the server, and the page drops them after playing them.
+Frames are sensitive: they hold the byte itself. Nothing on the server keeps them,
+and the page drops them when the next ``state`` arrives.
 """
 
 from __future__ import annotations
+
+import base64
 
 import torch
 import torch.nn.functional as F
 
 from dragonscope.vendor.bdh.bdh import BDH
 
-TOP_FIRED = 300  # Strongest firing neurons reported per round. About 880 fire.
-TOP_FLAGGED = 48
-LINK_CANDIDATES = 48  # Strongest neurons considered at each end of a connection.
-TOP_LINKS = 3
+# Activations are sent as 0 to 255 on this scale. The largest measured was 6.96.
+ACTIVATION_SCALE = 7.0
+TOP_LINKS = 4
+# A trained model passes about 100 signals a round. This bounds the search if not.
+MAX_LINK_SOURCES = 256
 
 
-def _top(values: torch.Tensor, count: int) -> dict[str, list]:
-    """Return the strongest entries, with strengths scaled so the top one is 1."""
-    strengths, indices = values.flatten().topk(count)
-    peak = float(strengths[0])
-    if peak <= 0:
-        return {"i": [], "s": []}
-    keep = strengths > 0
-    return {
-        "i": indices[keep].tolist(),
-        "s": [round(value, 2) for value in (strengths[keep] / peak).tolist()],
-    }
+def encode_activation(values: torch.Tensor) -> str:
+    """Pack one value per neuron into base64, with one byte for each."""
+    scaled = (values.flatten() / ACTIVATION_SCALE * 255).clamp(0, 255)
+    return base64.b64encode(scaled.to(torch.uint8).cpu().numpy().tobytes()).decode("ascii")
 
 
 class ActivityRecorder:
-    """Watches ``SessionMemory`` through its observer, one frame per byte."""
+    """Watches ``SessionMemory`` through its observer, building one frame per byte."""
 
-    def __init__(self, model: BDH, n_layer: int, flagged_rho: torch.Tensor | None):
+    def __init__(self, model: BDH, n_layer: int):
         self.model = model
         self.n_layer = n_layer
-        self.flagged_rho = flagged_rho
-        self.phase = "read"
-        self.frames: list[dict] = []
-        self._current: dict = {}
+        self._counterfactual: dict[int, torch.Tensor] = {}
+        self._frame: dict = {}
         self._previous_passed: torch.Tensor | None = None
+
+    def watch_counterfactual(self, level: int, x_sparse, xy_sparse, qr) -> None:
+        """Observer for the copy of memory that never read the flagged bytes."""
+        self._counterfactual[level] = x_sparse.clone()
 
     def _links(self, passed: torch.Tensor, fired: torch.Tensor) -> list[list[int]]:
         """Find the connections that most carried one round into the next.
 
         A neuron's output reaches the next round through its row of the decoder, and
         is read by the next neurons through their encoder columns. So the learned
-        connection from i to j is ``decoder[i] . encoder[j]``, and it counts here
-        when i passed a signal and j then fired.
+        connection from i to j is ``decoder[i] . encoder[j]``. It counts here in
+        proportion to the signal i passed and how strongly j then fired. This leaves
+        out the normalisation between rounds.
         """
+        sources = passed.nonzero().flatten()
+        targets = fired.nonzero().flatten()
+        if not len(sources) or not len(targets):
+            return []
+        if len(sources) > MAX_LINK_SOURCES:
+            sources = passed.topk(MAX_LINK_SOURCES).indices
         n = self.model.encoder.size(2)
-        sources = passed.topk(LINK_CANDIDATES)
-        targets = fired.topk(LINK_CANDIDATES)
-        columns = self.model.encoder[targets.indices // n, :, targets.indices % n]
-        weights = self.model.decoder[sources.indices] @ columns.T
-        scores = weights * sources.values[:, None] * targets.values[None, :]
-        best = scores.flatten().topk(TOP_LINKS)
-        links = []
-        for position, score in zip(best.indices.tolist(), best.values.tolist()):
-            if score <= 0:
-                break
-            links.append(
-                [
-                    int(sources.indices[position // LINK_CANDIDATES]),
-                    int(targets.indices[position % LINK_CANDIDATES]),
-                ]
-            )
-        return links
+        columns = self.model.encoder[targets // n, :, targets % n]
+        weights = self.model.decoder[sources] @ columns.T
+        scores = weights * passed[sources][:, None] * fired[targets][None, :]
+        best = scores.flatten().topk(min(TOP_LINKS, scores.numel()))
+        width = len(targets)
+        return [
+            [int(sources[place // width]), int(targets[place % width])]
+            for place, score in zip(best.indices.tolist(), best.values.tolist())
+            if score > 0
+        ]
 
     @torch.no_grad()
     def __call__(self, level: int, x_sparse, xy_sparse, qr) -> None:
         if level == 0:
-            self._current = {
-                "phase": self.phase,
-                "fired": [],
-                "counts": [],
-                "links": [],
-                "flagged": [],
-                "depends": 0.0,
-            }
+            self._frame = {"x": [], "counts": [], "passed": [], "links": [], "change": []}
             self._previous_passed = None
-        frame = self._current
+        frame = self._frame
         fired = x_sparse.flatten()
-        frame["fired"].append(_top(fired, TOP_FIRED))
+        passed = xy_sparse.flatten()
+        frame["x"].append(encode_activation(fired))
         frame["counts"].append(int((fired > 0).sum()))
+        frame["passed"].append(int((passed > 0).sum()))
         if self._previous_passed is not None:
             frame["links"].append(self._links(self._previous_passed, fired))
-        self._previous_passed = xy_sparse.flatten()
-        if self.flagged_rho is not None:
-            frame["flagged"].append(
-                _top(self.flagged_rho[level].norm(dim=1) * qr.abs(), TOP_FLAGGED)
+        self._previous_passed = passed
+        if level in self._counterfactual:
+            frame["change"].append(
+                encode_activation((x_sparse - self._counterfactual[level]).abs())
             )
-        if level == self.n_layer - 1:
-            self.frames.append(frame)
+
+    def take_frame(self) -> dict:
+        frame, self._frame = self._frame, {}
+        self._counterfactual = {}
+        return frame
 
 
 @torch.no_grad()

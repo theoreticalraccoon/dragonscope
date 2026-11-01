@@ -6,13 +6,14 @@ The dashboard in `dragonscope/static/` talks to `python -m dragonscope.server` a
 
 ## Client to server
 
-Each accepted message is followed by a `state` message. A `say` or `ask` sends `activity` first.
+Each accepted message is followed by a `state` message. A `say` or `ask` sends `frame` messages first.
 
 | Message | Effect |
 |---|---|
 | `{"type": "say", "field": "card", "value": "4111 1111 1111 1111"}` | States a value in its trained wording, and the model replies. |
 | `{"type": "ask", "field": "card"}` | Asks for a field in its trained wording. Use this for "ask it again". |
 | `{"type": "forget", "finding": 3}` | Erases that finding and every linked copy. A `forget_result` arrives before the `state`. |
+| `{"type": "speed", "full": true}` | Drops the pacing that holds each byte long enough to watch, or restores it. |
 | `{"type": "reset"}` | Clears the session for the next visitor, including the deletion log. |
 
 `field` is `card`, `nic`, `name` or `branch`. There is no free-text message, because the model only understands the wordings it was trained on.
@@ -82,35 +83,38 @@ The lists are shortened here. `statements` and `questions` have an entry for eac
 - **`memory.strength` and `memory.flagged`:** one integer per neuron, from 0 to 100, combined across rounds. `strength` is what the neuron holds relative to the strongest. `flagged` is the share of that from flagged data. This memory is a compressed form of the synaptic state, not individual synapses.
 - **`position` and `position_limit`:** Forget does not free positions. When an `ask` or `say` would pass the limit, the server sends `session_full`. A visitor can state all four fields, ask once, Forget, ask again, and ask about at least one other field.
 
-### `activity`
+### `frame`
 
-Sent before the `state` of each `say` or `ask`, with one frame per byte the model read or wrote.
+Sent live for each byte, as the model computes it, before the `state` of a `say` or `ask`.
 
 ```json
 {
-  "type": "activity",
-  "frames": [
-    {
-      "phase": "write",
-      "fired": [{"i": [2176, 164], "s": [1.0, 0.94]}],
-      "counts": [881, 874, 829, 866],
-      "links": [[[2176, 3049]], [[164, 2210]], []],
-      "flagged": [{"i": [812], "s": [1.0]}],
-      "depends": 0.98
-    }
-  ]
+  "type": "frame",
+  "phase": "write",
+  "char": "4",
+  "question": true,
+  "x": ["base64", "base64", "base64", "base64"],
+  "change": ["base64", "base64", "base64", "base64"],
+  "counts": [881, 874, 829, 866],
+  "passed": [129, 118, 68, 70],
+  "links": [[[2176, 3049]], [[164, 2210]], []],
+  "depends": 0.98,
+  "ms": 27.1,
+  "show_ms": 110
 }
 ```
 
-- **`fired`:** per round, the strongest 300 firing neurons as indexes (`head * 1024 + neuron`), with strengths scaled so the top one is 1. These come from the tensors that compute the reply.
-- **`counts`:** per round, how many neurons fired in total.
+- **`char`:** the character being read or written, empty for chat markers and newlines.
+- **`x`:** per round, every neuron's activation as one byte, from 0 to 255 on a fixed scale of 7. There are 4,096 bytes, indexed `head * 1024 + neuron`.
+- **`change`:** per round, on the same scale, how much each neuron's firing differs from a copy of memory that never read the flagged bytes. It is empty when nothing is flagged. The first round is always 0, as it depends only on the byte.
+- **`counts` and `passed`:** per round, how many neurons fired, and how many also passed a signal on.
 - **`links`:** for each pair of consecutive rounds, the `[from, to]` learned connections most used: `decoder[from] . encoder[to]`, weighted by the signal `from` passed and how strongly `to` then fired.
-- **`flagged`:** per round, the neurons where this byte's query meets flagged memory. It is empty when nothing is flagged.
-- **`depends`:** for written bytes, how much of the probability of writing this byte disappears in a counterfactual run where the flagged bytes were never read. It is 0 for read bytes, and when nothing is flagged.
+- **`depends`:** for written bytes, how much of the probability of writing this byte disappears in that copy.
+- **`ms` and `show_ms`:** the real time to compute the byte, comparison included, and the time it is held for watching.
 
 The model has 4,096 neurons. Its encoder is shared by all layers, so each byte passes through the same neurons in 4 rounds.
 
-Frames hold no text, but they are sensitive: in the first round, which neurons fire depends only on the byte. The server does not keep them. **Hold them only while playing them, then drop them.**
+Frames hold the byte itself, so they are sensitive. The server does not keep them. **Drop them when the next `state` arrives.**
 
 ### `forget_result`
 
@@ -143,4 +147,4 @@ Codes: `invalid_value`, `already_stated`, `session_full`, `unknown_field`, `unkn
 
 ## Timing
 
-Replies arrive as a whole, not byte by byte. On the demo laptop on battery, an exchange takes about 0.9 s and Forget about 0.8 s. The page then plays the activity back slowed down, over about 4 to 7 seconds, and says so.
+A byte took about 45 to 85 ms on the demo laptop on battery with the page open, comparison included, and the page shows the real figure. The server holds each byte for 75 ms when reading and 110 ms when writing, unless `full_speed` is on, so the model is running as the page shows it. Forget takes about 0.4 to 0.8 s.

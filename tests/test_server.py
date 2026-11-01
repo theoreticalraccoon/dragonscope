@@ -24,12 +24,14 @@ def client(model):
 
 
 def next_state(socket):
-    """Skip the activity frames that arrive before a chat turn's state."""
+    """Skip the live frames that arrive before a chat turn's state."""
     message = socket.receive_json()
-    if message["type"] == "activity":
-        assert message["frames"]
+    frames = 0
+    while message["type"] == "frame":
+        frames += 1
         message = socket.receive_json()
     assert message["type"] == "state"
+    assert frames > 0
     return message
 
 
@@ -61,6 +63,9 @@ def test_say_forget_and_reset_over_the_socket(client):
         assert result["log_entry"]["last4"] == "1111"
         assert CARD not in raw_result and CARD not in raw_state
         assert json.loads(raw_state)["deletion_log"] == [result["log_entry"]]
+
+        socket.send_json({"type": "speed", "full": True})
+        assert socket.receive_json()["full_speed"] is True
 
         socket.send_json({"type": "reset"})
         assert socket.receive_json()["turns"] == []

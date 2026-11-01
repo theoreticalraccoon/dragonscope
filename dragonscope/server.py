@@ -63,15 +63,18 @@ def _dispatch(session: DemoSession, message: dict) -> dict | None:
         return {"type": "forget_result", **result}
     elif kind == "reset":
         session.reset()
+    elif kind == "speed":
+        session.full_speed = bool(message.get("full"))
     else:
         raise SessionError("unknown_type", "Unknown message type.")
     return None
 
 
-def create_app(model: BDH) -> FastAPI:
+def create_app(model: BDH, paced: bool = False) -> FastAPI:
     torch.set_num_threads(CPU_THREADS)
     app = FastAPI(title="DragonScope", docs_url=None, redoc_url=None, openapi_url=None)
     session = DemoSession(model)
+    session.paced = paced
     facts = model_facts(model)
     lock = asyncio.Lock()
     clients: set[WebSocket] = set()
@@ -81,7 +84,7 @@ def create_app(model: BDH) -> FastAPI:
         for client in list(clients):
             try:
                 await client.send_json(payload)
-            except (RuntimeError, WebSocketDisconnect):
+            except (RuntimeError, ConnectionError, WebSocketDisconnect):
                 clients.discard(client)
 
     @app.get("/health")
@@ -123,11 +126,24 @@ def create_app(model: BDH) -> FastAPI:
             # Generation and rebuilds are slow, so keep the event loop free. The
             # lock keeps clients from changing the session during either one.
             async with lock:
-                result = await asyncio.to_thread(_dispatch, session, message)
+                loop = asyncio.get_running_loop()
+                outgoing: asyncio.Queue = asyncio.Queue()
+
+                async def send_frames() -> None:
+                    while (frame := await outgoing.get()) is not None:
+                        await broadcast(frame)
+
+                session.emit = lambda frame: loop.call_soon_threadsafe(
+                    outgoing.put_nowait, frame
+                )
+                sender = asyncio.create_task(send_frames())
+                try:
+                    result = await asyncio.to_thread(_dispatch, session, message)
+                finally:
+                    outgoing.put_nowait(None)
+                    await sender
+                    session.emit = None
                 state = await asyncio.to_thread(session.state)
-                activity = session.take_activity()
-                if activity is not None:
-                    await broadcast({"type": "activity", "frames": activity})
                 if result is not None:
                     await broadcast(result)
                 await broadcast(state)
@@ -154,7 +170,7 @@ def main() -> None:
     parser.add_argument("--model", type=Path, default=Path("models/best_model.pt"))
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-    app = create_app(load_model(args.model))
+    app = create_app(load_model(args.model), paced=True)
     print(f"DragonScope is running at http://127.0.0.1:{args.port}", flush=True)
     uvicorn.run(
         app,
@@ -162,6 +178,7 @@ def main() -> None:
         port=args.port,
         access_log=False,
         log_level="warning",
+        ws_per_message_deflate=False,  # Local only, so compressing frames is wasted.
         ws_max_size=MAX_MESSAGE_BYTES * 4,
     )
 
