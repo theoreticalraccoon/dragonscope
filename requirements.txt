@@ -2,4 +2,5 @@ torch>=2.5
 numpy>=2.0
 pytest>=8.0
 fastapi>=0.115
-uvicorn[standard]>=0.30
+uvicorn>=0.30
+websockets>=13.0
