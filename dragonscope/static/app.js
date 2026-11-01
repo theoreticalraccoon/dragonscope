@@ -9,8 +9,8 @@ const $ = (id) => document.getElementById(id);
 
 const FIELD_LABELS = { card: "Card", nic: "NIC", name: "Name", branch: "Branch" };
 const KIND_WORDS = { card: "card", nic: "NIC", number: "number" };
-const READ_MS = 32; // Time per byte when playing back. The model itself is faster.
-const WRITE_MS = 62;
+const READ_MS = 38; // Time per byte when playing back. The model itself is faster.
+const WRITE_MS = 80;
 
 let socket = null;
 let guide = null;
@@ -24,6 +24,7 @@ let lastHeadline = "";
 let trace = null; // Frames waiting to play, or playing.
 let playback = null;
 let recall = null; // Counts only: how many written characters depended on memory.
+let model = null; // The model's real size and structure, from the server.
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -62,6 +63,9 @@ function connect() {
     const message = JSON.parse(event.data);
     if (message.type === "hello") {
       guide = message.guide;
+      model = message.model;
+      brain.build(model);
+      renderHud();
       applyState(message.state);
       renderFields();
     } else if (message.type === "activity") {
@@ -102,7 +106,7 @@ function applyState(next) {
     return;
   }
   busy = false;
-  brain.showMemory(state.memory.neurons);
+  brain.showMemory(state.memory);
   render();
 }
 
@@ -163,10 +167,11 @@ function stepPlayback() {
   const duration = frame.phase === "read" ? READ_MS : WRITE_MS;
   brain.fireFrame(frame, duration);
   run.index += 1;
+  renderHud(Math.round(frame.counts.reduce((sum, value) => sum + value, 0) / frame.counts.length), frame.depends > 0.5);
   if (frame.phase === "write") {
     if (!run.memoryShown) {
       run.memoryShown = true;
-      brain.showMemory(state.memory.neurons);
+      brain.showMemory(state.memory);
     }
     run.written.push(frame.depends);
     run.depends = frame.depends;
@@ -188,8 +193,28 @@ function finishPlayback(recallRun, isQuestion) {
   stopPlayback();
   recall = isQuestion ? recallRun : recall;
   busy = false;
-  brain.showMemory(state.memory.neurons);
+  brain.showMemory(state.memory);
+  renderHud();
   render();
+}
+
+// The model's real numbers, and how many of its neurons are firing right now.
+function renderHud(firing, hot) {
+  const hud = $("hud");
+  hud.replaceChildren();
+  const add = (value, label, className) => {
+    const stat = el("div", `hud-stat${className ? ` ${className}` : ""}`);
+    stat.append(el("b", "", value), el("span", "", label));
+    hud.append(stat);
+  };
+  if (firing !== undefined) {
+    add(firing.toLocaleString("en-US"), `of ${model.neurons.toLocaleString("en-US")} neurons firing`, `live${hot ? " hot" : ""}`);
+  } else {
+    add(model.neurons.toLocaleString("en-US"), "real neurons");
+  }
+  add(`${(model.parameters / 1e6).toFixed(1)}M`, "learned weights");
+  add(`${model.rounds} × ${model.heads}`, "rounds per character × heads");
+  add("0", "cloud calls: offline, on CPU");
 }
 
 function renderReadout() {

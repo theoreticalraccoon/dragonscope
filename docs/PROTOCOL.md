@@ -21,7 +21,7 @@ Each accepted message is followed by a `state` message. A `say` or `ask` sends `
 
 ### `hello`
 
-Sent once on connecting. It has a `state` (below) and a `guide` holding the only values the chat can offer:
+Sent once on connecting. It has a `state` (below), a `model` with the real model's size (`neurons`, `heads`, `per_head`, `rounds`, `parameters`) and each neuron's place within its head (`u`, `v`, from 0 to 1, from what it responds to), and a `guide` holding the only values the chat can offer:
 
 ```json
 {
@@ -69,9 +69,8 @@ The lists are shortened here. `statements` and `questions` have an entry for eac
     "position": 83,
     "position_limit": 400,
     "rho_norm": 412.7,
-    "neurons": [
-      {"layer": 0, "head": 2, "neuron": 317, "strength": 9.81, "flagged_share": 0.42}
-    ]
+    "strength": [12, 0, 47],
+    "flagged": [0, 0, 63]
   }
 }
 ```
@@ -80,7 +79,7 @@ The lists are shortened here. `statements` and `questions` have an entry for eac
 - **`findings`:** every flagged span. `kind` is `card`, `nic` or `number`. `source` is `user` or `reply`. A reply's `luhn_valid` is `false` when it is a garbled echo of a card.
 - **`stated`:** fields given this session. A field can be given only once per session, even after Forget, so disable those inputs until reset.
 - **`last_answer`:** set after an `ask`, and `refused` is true when the reply is exactly the refusal. It is `null` after anything else.
-- **`memory.neurons`:** at most 600 neurons for the brain. This is the strongest set, plus the 300 holding most of any flagged data. `flagged_share` is that data's strength relative to the neuron's total, from 0 to 1. Call these neurons in a compressed form of the synaptic state, not individual synapses.
+- **`memory.strength` and `memory.flagged`:** one integer per neuron, from 0 to 100, combined across rounds. `strength` is what the neuron holds relative to the strongest. `flagged` is the share of that from flagged data. This memory is a compressed form of the synaptic state, not individual synapses.
 - **`position` and `position_limit`:** Forget does not free positions. When an `ask` or `say` would pass the limit, the server sends `session_full`. A visitor can state all four fields, ask once, Forget, ask again, and ask about at least one other field.
 
 ### `activity`
@@ -94,6 +93,8 @@ Sent before the `state` of each `say` or `ask`, with one frame per byte the mode
     {
       "phase": "write",
       "fired": [{"i": [2176, 164], "s": [1.0, 0.94]}],
+      "counts": [881, 874, 829, 866],
+      "links": [[[2176, 3049]], [[164, 2210]], []],
       "flagged": [{"i": [812], "s": [1.0]}],
       "depends": 0.98
     }
@@ -101,11 +102,15 @@ Sent before the `state` of each `say` or `ask`, with one frame per byte the mode
 }
 ```
 
-- **`fired`:** per layer, the strongest firing neurons as flat indexes (`layer * 4096 + head * 1024 + neuron`), with strengths scaled so the top one is 1. These come from the tensors that compute the reply.
-- **`flagged`:** per layer, the neurons where this byte's query meets flagged memory. It is empty when nothing is flagged.
+- **`fired`:** per round, the strongest 300 firing neurons as indexes (`head * 1024 + neuron`), with strengths scaled so the top one is 1. These come from the tensors that compute the reply.
+- **`counts`:** per round, how many neurons fired in total.
+- **`links`:** for each pair of consecutive rounds, the `[from, to]` learned connections most used: `decoder[from] . encoder[to]`, weighted by the signal `from` passed and how strongly `to` then fired.
+- **`flagged`:** per round, the neurons where this byte's query meets flagged memory. It is empty when nothing is flagged.
 - **`depends`:** for written bytes, how much of the probability of writing this byte disappears in a counterfactual run where the flagged bytes were never read. It is 0 for read bytes, and when nothing is flagged.
 
-Frames hold no text, but they are sensitive: at layer 0, which neurons fire depends only on the byte. The server does not keep them. **Hold them only while playing them, then drop them.**
+The model has 4,096 neurons. Its encoder is shared by all layers, so each byte passes through the same neurons in 4 rounds.
+
+Frames hold no text, but they are sensitive: in the first round, which neurons fire depends only on the byte. The server does not keep them. **Hold them only while playing them, then drop them.**
 
 ### `forget_result`
 

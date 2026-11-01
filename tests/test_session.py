@@ -203,20 +203,21 @@ def test_session_keeps_working_after_forget(session):
     assert session.last_answer == {"field": "card", "refused": True}
 
 
-def test_neuron_map_points_at_flagged_data_then_clears(session):
+def test_neuron_memory_covers_every_neuron_and_clears_flagged_data(session):
     script(session, "Noted.\n", "Noted.\n")
     session.say("branch", split_names("train")[2][0])
     session.say("card", CARD)
-    neurons = session.state()["memory"]["neurons"]
-    assert 0 < len(neurons) <= 600
-    assert max(n["flagged_share"] for n in neurons) > 0.1
+    memory = session.state()["memory"]
+    neurons = session.memory.n_head * session.memory.N
+    assert len(memory["strength"]) == len(memory["flagged"]) == neurons
+    assert max(memory["strength"]) == 100
+    assert max(memory["flagged"]) > 10
     session.forget(flagged(session, "card").id)
-    neurons = session.state()["memory"]["neurons"]
-    assert all(n["flagged_share"] == 0 for n in neurons)
+    assert set(session.state()["memory"]["flagged"]) == {0}
 
 
 def test_empty_session_has_a_state(session):
-    assert session.state()["memory"]["neurons"] == []
+    assert set(session.state()["memory"]["strength"]) == {0}
 
 
 def test_reset_clears_everything(session):
@@ -258,9 +259,13 @@ def test_activity_has_one_frame_per_byte_and_is_handed_over_once(session):
     assert session.take_activity() is None
     assert session.memory.observer is None
     assert len(frames[0]["fired"]) == session.memory.n_layer
-    per_layer = session.memory.n_head * session.memory.N
-    assert all(i // per_layer == 2 for i in frames[0]["fired"][2]["i"])
-    assert set(frames[0]) == {"phase", "fired", "flagged", "depends"}
+    neurons = session.memory.n_head * session.memory.N
+    assert all(0 <= i < neurons for i in frames[0]["fired"][2]["i"])
+    assert all(count > 0 for count in frames[0]["counts"])
+    assert len(frames[0]["links"]) == session.memory.n_layer - 1
+    for round_links in frames[0]["links"]:
+        assert all(0 <= a < neurons and 0 <= b < neurons for a, b in round_links)
+    assert set(frames[0]) == {"phase", "fired", "counts", "links", "flagged", "depends"}
 
 
 def test_activity_reports_flagged_neurons_only_while_something_is_flagged(session):

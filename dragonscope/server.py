@@ -20,6 +20,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
+from dragonscope.activity import model_facts
 from dragonscope.session import DemoSession, SessionError, guide
 from dragonscope.train import load_model
 from dragonscope.vendor.bdh.bdh import BDH
@@ -62,6 +63,7 @@ def create_app(model: BDH) -> FastAPI:
     torch.set_num_threads(CPU_THREADS)
     app = FastAPI(title="DragonScope", docs_url=None, redoc_url=None, openapi_url=None)
     session = DemoSession(model)
+    facts = model_facts(model)
     lock = asyncio.Lock()
     clients: set[WebSocket] = set()
     app.state.session = session
@@ -86,7 +88,9 @@ def create_app(model: BDH) -> FastAPI:
         async with lock:
             state = await asyncio.to_thread(session.state)
             clients.add(websocket)
-            await websocket.send_json({"type": "hello", "guide": guide(), "state": state})
+            await websocket.send_json(
+                {"type": "hello", "guide": guide(), "model": facts, "state": state}
+            )
         try:
             while True:
                 raw = await websocket.receive_text()

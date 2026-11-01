@@ -52,8 +52,9 @@
     </section>
 
     <section class="brain">
+      <div class="hud" id="hud"></div>
       <div class="brain-wrap" id="brain-wrap">
-        <canvas id="brain" role="img" aria-label="A brain made of the model's neurons. Neurons light up as they fire, and those holding private data are red."></canvas>
+        <canvas id="brain" role="img" aria-label="A glass brain holding the model's real neurons. Neurons light up as they fire, and those holding private data are red."></canvas>
         <ul class="legend">
           <li><span class="swatch fire"></span>Firing now</li>
           <li><span class="swatch hot"></span>Holds or recalls your private data</li>
@@ -64,7 +65,7 @@
         </div>
       </div>
       <div id="proof"></div>
-      <p class="dim caption">Each dot is one of the model's 16,384 real neurons, and the activity is real, slowed down to watch. The brain shape is an illustration: depth shows the layer and region shows the head. Drag to turn it.</p>
+      <p class="dim caption">Every dot is one of the model's real neurons, and neighbours respond to similar characters. Its 4 regions are the model's 4 heads. Lines are its strongest learned connections between firing neurons. The activity is real and slowed down; the brain outline is an illustration. Drag to turn it.</p>
     </section>
   </main>
 

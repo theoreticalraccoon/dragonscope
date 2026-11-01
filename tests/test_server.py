@@ -38,6 +38,11 @@ def test_hello_has_the_guide_and_state(client):
         hello = socket.receive_json()
     assert hello["type"] == "hello"
     assert "statements" in hello["guide"]
+    model = hello["model"]
+    assert model["neurons"] == model["heads"] * model["per_head"]
+    assert model["parameters"] == 1_638_400
+    assert len(model["u"]) == len(model["v"]) == model["neurons"]
+    assert 0 <= min(model["u"]) and max(model["u"]) <= 1
     assert hello["state"]["turns"] == []
 
 

@@ -1,6 +1,6 @@
 :root {
   color-scheme: dark;
-  --black: #07080b;
+  --black: #05060a;
   --white: #f2efe9;
   --dim: #9a9aa0;
   --line: #2a2b30;
@@ -175,6 +175,12 @@ main {
 .swatch.fire { background: var(--fire); box-shadow: 0 0 8px var(--fire); }
 .swatch.hot { background: var(--red); box-shadow: 0 0 8px var(--red); }
 
+.hud { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.hud-stat b { display: block; font: 300 clamp(24px, 2.3vw, 38px)/1.1 "Segoe UI Variable Display", "Segoe UI Light", "Segoe UI", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.hud-stat span { display: block; font-size: 13px; line-height: 1.25; color: var(--dim); }
+.hud-stat.live b { color: var(--fire); }
+.hud-stat.live.hot b { color: var(--red); }
+
 .readout {
   position: absolute;
   left: 50%;
@@ -205,6 +211,7 @@ main {
   .transcript { max-height: 40vh; }
   .brain-wrap { flex: none; height: 92vw; max-height: 560px; touch-action: pan-y; }
   .stats { grid-template-columns: 1fr; gap: 8px; }
+  .hud { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

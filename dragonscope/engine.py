@@ -52,7 +52,7 @@ class SessionMemory:
         self.n_head = config.n_head
         self.D = config.n_embd
         self.N = config.mlp_internal_dim_multiplier * config.n_embd // config.n_head
-        # Optional callback(level, x_sparse, qr, rho) to watch each layer of a step.
+        # Optional callback(level, x_sparse, xy_sparse, qr) to watch a step's layers.
         # It must only read. ``fork`` and ``rebuild`` do not report to it.
         self.observer = None
         self.reset()
@@ -116,8 +116,6 @@ class SessionMemory:
             qr = Attention.rope(phases, x_sparse)[0, :, 0, :]  # nh, N
             v = x[0, 0, 0, :]  # D
 
-            if self.observer is not None:
-                self.observer(level, x_sparse[0, :, 0, :], qr, self.rho[level])
             attention = torch.einsum("hdn,hn->hd", self.rho[level], qr)
             self.rho[level] += torch.einsum("d,hn->hdn", v, qr)
             entry_v.append(v)
@@ -126,6 +124,8 @@ class SessionMemory:
             y_kv = model.ln(attention.view(1, self.n_head, 1, self.D))
             y_sparse = F.relu(y_kv @ model.encoder_v)
             xy_sparse = x_sparse * y_sparse
+            if self.observer is not None:
+                self.observer(level, x_sparse[0, :, 0, :], xy_sparse[0, :, 0, :], qr)
             y_mlp = (
                 xy_sparse.transpose(1, 2).reshape(1, 1, 1, self.N * self.n_head)
                 @ model.decoder

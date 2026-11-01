@@ -8,7 +8,15 @@ The project is ahead of schedule: the Day 1 gates, the card and NIC part of the 
 
 `python -m dragonscope.server`, then open http://127.0.0.1:8000. It is a minimal exhibit, as the owner asked: numbered steps and one sentence tell the story, a 3D brain shows memory, and one glowing button shows the next action. Files are in `dragonscope/static/`, with three.js 0.160.0 and its licence bundled locally. The owner replaced the plan's D3 graph with this brain, so D3 is gone.
 
-**The activity is real.** Each dot is one of the 16,384 neurons. Depth shows the layer and region shows the head. The brain shape is an illustration, and the page says so. `dragonscope/activity.py` records which neurons fire for each byte from the tensors that compute the reply. Nothing lights up otherwise. The page plays the recording back slowed down, and says that too. The lines show the signal passing between layers, not individual synapses.
+**The model on screen is the real one.** The earlier scope and first brain treated layers as separate neurons and said 16,384. That was wrong: the encoder is shared, so there are **4,096 neurons** (4 heads of 1,024) and each character passes through them in **4 rounds**. About 880 fire per round. Do not reintroduce per-layer neurons.
+
+- **Dots:** one per real neuron. The 4 regions are the 4 heads.
+- **Position:** from learned weights (`model_facts` in `dragonscope/activity.py`). Each neuron's firing for every text character gives its tuning, and the two main axes of tuning place it. Measured: similarity to the 5 nearest neighbours is 0.43, against 0.25 to 0.29 for all pairs.
+- **Firing:** the strongest 300 of those firing in each round, from the tensors that compute the reply. The counter shows the true total. The page plays this back slowed down and says so.
+- **Lines:** the strongest learned connections, `decoder[i] . encoder[j]`, between neurons firing in consecutive rounds. They are model weights, not `rho`.
+- **Red:** the share of each neuron's memory that comes from flagged data. Shares run from 0 to 0.99 with a median of 0.19 when a card is 21% of the session, so it is spread across many neurons rather than stored in one place. Neurons under a 25% share stay unlit, so the display is thresholded.
+- **Illustrative only:** the brain outline and its folds, and the glow's size and colour. There is no brain stem or cerebellum, by the owner's choice. The shell's pulse follows the real firing count and `depends`, and the page says the outline is an illustration.
+- **Not real activity:** the flare on Forget marks neurons that held the data, as a visual cue.
 
 **The red letters are a measurement.** For each written byte, `depends` is how much of its probability disappears in a counterfactual run where the flagged bytes were never read. Over 15 sessions with a card and NIC stored:
 
@@ -22,7 +30,7 @@ Two simpler signals failed and were dropped, so do not bring them back. The shar
 
 Limits: `depends` compares the model with and without **all** flagged data, not one value. A digit can score low when the model would have guessed the same digit anyway. After Forget it is 0 because nothing flagged remains to remove, so it is not separate evidence of erasure.
 
-Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, activity frames were dropped after playing, there were no console errors, and the page requested nothing from outside 127.0.0.1. It held about 50 frames a second with software rendering. Nobody has yet watched it on the laptop's real GPU, run it with Wi-Fi off, or seen it on a booth screen.
+Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, activity frames were dropped after playing, there were no console errors, and the page requested nothing from outside 127.0.0.1. It held 60 frames a second on the laptop's Iris Xe GPU. **Keep hardware acceleration on in the browser:** with software rendering it fell to about 10 to 16 frames a second and competed with the model for CPU, stalling replies for over a minute. Nobody has yet run it with Wi-Fi off or seen it on a booth screen.
 
 ## Backend
 

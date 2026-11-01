@@ -31,10 +31,6 @@ from dragonscope.vendor.bdh.bdh import BDH
 SESSION_LIMIT = 400
 # The longest trained reply and its newline: a card with separators.
 REPLY_RESERVE = 41
-MAP_NEURONS = 600
-# Saved for the neurons that hold the most of a flagged value, which may not be
-# among the strongest overall.
-MAP_FLAGGED_NEURONS = 300
 
 
 class SessionError(Exception):
@@ -154,9 +150,7 @@ class DemoSession:
         if memory.position + len(prompt) + REPLY_RESERVE > SESSION_LIMIT:
             raise SessionError("session_full", "This session is full. Please reset.")
 
-        recorder = ActivityRecorder(
-            memory.n_head, memory.N, memory.n_layer, self._flagged_rho()
-        )
+        recorder = ActivityRecorder(memory.model, memory.n_layer, self._flagged_rho())
         flagged_before = self._flagged_positions()
         first_position = memory.position
         memory.observer = recorder
@@ -376,40 +370,24 @@ class DemoSession:
                 segments[-1]["text"] += chr(byte) if byte < 128 else "�"
         return segments
 
-    def _neuron_map(self) -> list[dict]:
-        """Return the strongest neurons, and how much flagged data each one holds."""
+    def _neuron_memory(self) -> dict[str, list[int]]:
+        """Return, per neuron from 0 to 100, what it holds and how much is flagged.
+
+        A neuron has one memory per round, and these are combined here.
+        """
         memory = self.memory
-        if not memory.bytes:
-            return []
-        strength = memory.rho.norm(dim=2)  # layer, head, neuron
+        strength = memory.rho.norm(dim=(0, 2)).flatten()
         flagged = self._flagged_rho()
-        flagged_strength = (
-            torch.zeros_like(strength) if flagged is None else flagged.norm(dim=2)
+        share = (
+            torch.zeros_like(strength)
+            if flagged is None
+            else flagged.norm(dim=(0, 2)).flatten() / strength.clamp_min(1e-12)
         )
-
-        chosen: dict[int, None] = {}
-        if flagged is not None:
-            top = flagged_strength.flatten().topk(MAP_FLAGGED_NEURONS).indices
-            chosen.update(dict.fromkeys(top.tolist()))
-        for index in strength.flatten().topk(MAP_NEURONS).indices.tolist():
-            if len(chosen) >= MAP_NEURONS:
-                break
-            chosen.setdefault(index)
-
-        share = (flagged_strength / strength.clamp_min(1e-12)).clamp_max(1.0).flatten()
-        flat_strength = strength.flatten()
-        per_head = memory.N
-        per_layer = memory.n_head * per_head
-        return [
-            {
-                "layer": index // per_layer,
-                "head": index % per_layer // per_head,
-                "neuron": index % per_head,
-                "strength": round(float(flat_strength[index]), 4),
-                "flagged_share": round(float(share[index]), 4),
-            }
-            for index in chosen
-        ]
+        scaled = strength / strength.max().clamp_min(1e-12)
+        return {
+            "strength": (scaled * 100).round().int().tolist(),
+            "flagged": (share.clamp_max(1.0) * 100).round().int().tolist(),
+        }
 
     def state(self) -> dict:
         """Return the whole visible state. Clients replace theirs with this."""
@@ -440,7 +418,7 @@ class DemoSession:
                 "position": memory.position,
                 "position_limit": SESSION_LIMIT,
                 "rho_norm": round(float(memory.rho.norm()), 4),
-                "neurons": self._neuron_map(),
+                **self._neuron_memory(),
             },
         }
 

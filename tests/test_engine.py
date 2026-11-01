@@ -126,7 +126,7 @@ def test_observer_sees_every_layer_and_changes_nothing(model):
     plain = SessionMemory(model).read(TEXT)
     watched = SessionMemory(model)
     calls = []
-    watched.observer = lambda level, *_: calls.append(level)
+    watched.observer = lambda level, x, xy, qr: calls.append(level)
     logits = watched.read(TEXT)
     assert torch.equal(logits, plain)
     assert len(calls) == len(TEXT) * watched.n_layer
