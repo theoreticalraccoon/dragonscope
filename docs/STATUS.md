@@ -22,7 +22,7 @@ This is the residual predicted in the plan. Bytes after the secret absorbed it a
 ## Training
 
 - CPU run on the owner's laptop: `%USERPROFILE%\dragonscope-runs\cpu-main`, about 9 s/step at batch 16, so roughly 400 steps an hour. It is too slow to reach the Monday gate by itself.
-- GPU run: not started yet. Use `notebooks/train_gpu.ipynb` on Colab or Kaggle.
+- GPU run: not started yet. `notebooks/train_gpu.ipynb` is written for Colab but has not been run there.
 - Training output is not in git, so cloud sessions cannot see it until a milestone model is committed to `models/`.
 
 ## Next (Day 2)
