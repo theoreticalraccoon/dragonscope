@@ -34,7 +34,6 @@ Then open http://127.0.0.1:8000.
 | `dragonscope/server.py` | FastAPI and WebSocket server, using `docs/PROTOCOL.md` |
 | `dragonscope/activity.py` | Records which neurons really fire for each byte |
 | `dragonscope/static/` | The exhibit page and 3D brain, with three.js bundled locally |
-| `dragonscope/static/bdh.html` | A general explainer that runs a tiny BDH in the browser |
 | `scripts/booth_check.py` | Runs the booth flow over a real WebSocket |
 | `dragonscope/train.py` | Resumable training and exact-recall evaluation |
 | `dragonscope/vendor/bdh/` | Unmodified upstream BDH, with its licence |

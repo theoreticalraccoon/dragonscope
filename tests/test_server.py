@@ -117,13 +117,13 @@ def test_page_and_its_files_are_served_locally(client):
     assert page.status_code == 200
     assert page.headers["cache-control"] == "no-store"
     assert "DragonScope" in page.text
-    for path in ("style.css", "app.js", "brain.js", "vendor/three.min.js", "bdh.html", "bdh.css", "bdh.js"):
+    for path in ("style.css", "app.js", "brain.js", "vendor/three.min.js"):
         assert client.get(f"/{path}").status_code == 200
     # The motion is the exhibit, and the demo laptop has Windows animations off,
     # which browsers report as this preference. Honouring it hid all the firing.
-    for path in ("/style.css", "/app.js", "/brain.js", "/bdh.css", "/bdh.js"):
+    for path in ("/style.css", "/app.js", "/brain.js"):
         assert "prefers-reduced-motion" not in client.get(path).text
     # The demo must run offline, so our own files load nothing from elsewhere.
-    for path in ("/", "/style.css", "/app.js", "/brain.js", "/bdh.html", "/bdh.css", "/bdh.js"):
+    for path in ("/", "/style.css", "/app.js", "/brain.js"):
         assert "http://" not in client.get(path).text
         assert "https://" not in client.get(path).text

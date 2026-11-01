@@ -8,8 +8,6 @@ The project is ahead of schedule: the Day 1 gates, the card and NIC part of the 
 
 `python -m dragonscope.server`, then open http://127.0.0.1:8000. It is a minimal exhibit, as the owner asked: numbered steps and one sentence tell the story, a 3D brain shows memory, and one glowing button shows the next action. Files are in `dragonscope/static/`, with three.js 0.160.0 and its licence bundled locally. The owner replaced the plan's D3 graph with this brain, so D3 is gone.
 
-**General explainer at `/bdh.html`.** It runs a tiny, untrained BDH in the browser (`static/bdh.js`: 3 rounds, 4 heads, 128 neurons), linked from the demo's header. Its final signal matched `BDH.forward` with the same weights to within 5e-7, in a one-off check. Synapses are drawn from the paper's σ rule, kept only for display, and do not affect the calculation. It is not the trained model, and the page says so.
-
 **The model on screen is the real one.** The earlier scope and first brain treated layers as separate neurons and said 16,384. That was wrong: the encoder is shared, so there are **4,096 neurons** (4 heads of 1,024) and each character passes through them in **4 rounds**. About 880 fire per round. Do not reintroduce per-layer neurons.
 
 - **Dots:** one per real neuron. The 4 regions are the 4 heads.
