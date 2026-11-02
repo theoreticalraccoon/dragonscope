@@ -51,7 +51,7 @@ Fallbacks, in order:
 
 Say it erases session memory in a prototype. The weights only saw synthetic data, so this is not machine unlearning. Do not claim regulatory compliance or production scale.
 
-## Open items for the owner
+## Open items
 
 - Confirm INFOTEL slot, power, screen and submission requirements with FITIS.
-- Settle the name spelling before printing: "DragonScope" is used here, and an earlier message said "Dragonacope".
+- Settle the name spelling before printing.

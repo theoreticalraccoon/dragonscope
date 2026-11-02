@@ -12,14 +12,14 @@ To run the frozen version: `git checkout infotel-2026`, then `python -m dragonsc
 
 Everything is in `booth/`. Start with `booth/CHECKLIST.md`.
 
-- **Rehearsal: 20 of 20 clean in a real browser**, on the Iris Xe GPU, with off-laptop requests blocked, no page errors and a mean run of 16 s. **Wi-Fi was still on,** because turning it off would have cut the coding session. The true offline run is one command in the checklist and is still to do.
+- **Rehearsal: 20 of 20 clean in a real browser**, on the Iris Xe GPU, with off-laptop requests blocked, no page errors and a mean run of 16 s. **Wi-Fi was still on.** The true offline run is one command in the checklist and is still to do.
 - **Screens:** no scrolling or clipping at any size tested, from 1280x720 to 4K. At 4K with 100% scaling, chat text is too small, so the checklist says to use 200%. The real booth screen has not been seen.
 - **Backup video:** `booth/backup_video.webm`, 47.6 s at 1080p, recorded from the real flow. It is committed on `infotel-2026` only.
 - **Printed cards:** `booth/fake_cards.pdf`, with 8 cards. The card numbers are published payment test numbers, as random Luhn-valid numbers could match real cards. Each NIC uses day 999, so it cannot be real. Each number passed 5 of 5 full flows on the trained model, in two conversation shapes.
 
 ## Toolkit (on `main`)
 
-The owner has made DragonScope an open-source toolkit for BDH developers, a debugger for AI memory, with the bank demo as its flagship example. Toolkit work goes on `main` and leaves the frozen branch alone. The repository is still private, and the MIT `LICENSE` names the owner; both are the owner's call.
+DragonScope is now an open-source toolkit for BDH developers, a debugger for AI memory, with the bank demo as its flagship example. Toolkit work goes on `main` and leaves the frozen branch alone. The repository is public, under the MIT `LICENSE`.
 
 Built and tested:
 
@@ -28,7 +28,7 @@ Built and tested:
 - **Benchmark:** `python -m dragonscope.benchmark`, then `python scripts/benchmark_charts.py`. Results and charts are in `docs/benchmark/` and the README. Run on an idle machine: an earlier run during pytest gave unreliable timings and was discarded.
 - **Notebook:** `notebooks/getting_started.ipynb`, executed with outputs saved.
 - **Packaging:** `pyproject.toml`, with extras `dashboard`, `charts` and `dev`. A wheel installed outside the repo served every static file and installed the `dragonscope-dashboard` command. It is not on PyPI.
-- **Community post:** a draft only, in `docs/community/announcement_draft.md`. Nothing has been posted. It needs the repository made public first.
+- **Community post:** a draft only, in `docs/community/announcement_draft.md`. Nothing has been posted.
 
 Benchmark results, forgetting a 19-byte card, 20 conversations per length:
 
@@ -42,7 +42,7 @@ Benchmark results, forgetting a 19-byte card, 20 conversations per length:
 
 ## Dashboard
 
-`python -m dragonscope.server`, then open http://127.0.0.1:8000. It is a minimal exhibit, as the owner asked: numbered steps and one sentence tell the story, a 3D brain shows memory, and one glowing button shows the next action. Files are in `dragonscope/static/`, with three.js 0.160.0 and its licence bundled locally. The owner replaced the plan's D3 graph with this brain, so D3 is gone.
+`python -m dragonscope.server`, then open http://127.0.0.1:8000. It is a minimal exhibit: numbered steps and one sentence tell the story, a 3D brain shows memory, and one glowing button shows the next action. Files are in `dragonscope/static/`, with three.js 0.160.0 and its licence bundled locally. The brain replaced the plan's D3 graph, so D3 is gone.
 
 **The model on screen is the real one.** The earlier scope and first brain treated layers as separate neurons and said 16,384. That was wrong: the encoder is shared, so there are **4,096 neurons** (4 heads of 1,024) and each character passes through them in **4 rounds**. About 880 fire per round. Do not reintroduce per-layer neurons.
 
@@ -52,7 +52,7 @@ Benchmark results, forgetting a 19-byte card, 20 conversations per length:
 - **Lines:** the strongest learned connections, `decoder[i] . encoder[j]`, between neurons firing in consecutive rounds. They are model weights, not `rho`.
 - **Red at rest:** the share of each neuron's memory that comes from flagged data, with no threshold. Shares run from 0 to 0.99 with a median of 0.19 when a card is 21% of the session, so it is spread across many neurons rather than stored in one place.
 - **Red while active:** a second copy of memory that never read the flagged bytes runs alongside, and each neuron's red is how much its firing differs. This is causal. Over 10 sessions, final-round firing changed by 58% when writing the card's digits, against 4% when answering about the branch, with about 266 neurons changing by over 10% of the peak. The first round changes by exactly 0, as it depends only on the byte. This replaced an earlier indicative measure.
-- **Illustrative only:** the brain outline and its folds, and the glow's size and colour. There is no brain stem or cerebellum, by the owner's choice. The shell's pulse follows the real firing count and `depends`, and the page says the outline is an illustration.
+- **Illustrative only:** the brain outline and its folds, and the glow's size and colour. There is no brain stem or cerebellum, by choice. The shell's pulse follows the real firing count and `depends`, and the page says the outline is an illustration.
 - **Removed:** the flare on Forget, the red threshold, the boost to weak neurons, and replay.
 - **Cannot be made real:** which head sits in which brain region, and the brain shape. The model has neither.
 
@@ -70,7 +70,7 @@ Limits: `depends` compares the model with and without **all** flagged data, not 
 
 **The page ignores the reduced-motion preference, on purpose.** This laptop has Windows animations off, which browsers report as `prefers-reduced-motion`. Honouring it skipped all firing and rotation, and test browsers override it, so tests did not show this. The motion is the exhibit, so it always runs. Test with `reduced_motion="reduce"` as well.
 
-Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, live frames were dropped when the state arrived, there were no console errors, and the page requested nothing from outside 127.0.0.1. It held 60 frames a second in Edge on the laptop's Iris Xe GPU, and about 35 in Opera GX, the owner's default browser. Use Edge at the booth, or check GX Control's limits first. **Keep hardware acceleration on in the browser:** with software rendering it fell to about 10 to 16 frames a second and competed with the model for CPU, stalling replies for over a minute. Nobody has yet run it with Wi-Fi off or seen it on a booth screen.
+Tested in headless Edge at 1366x768, 1920x1080 and phone width: the full flow worked, the secret was not in the page's HTML or JavaScript state after Forget, live frames were dropped when the state arrived, there were no console errors, and the page requested nothing from outside 127.0.0.1. It held 60 frames a second in Edge on the laptop's Iris Xe GPU, and about 35 in Opera GX, the laptop's default browser. Use Edge at the booth, or check GX Control's limits first. **Keep hardware acceleration on in the browser:** with software rendering it fell to about 10 to 16 frames a second and competed with the model for CPU, stalling replies for over a minute. Nobody has yet run it with Wi-Fi off or seen it on a booth screen.
 
 ## Backend
 
@@ -90,7 +90,7 @@ Forget's reach: positions and findings hold no values, so `SessionMemory` is the
 
 ## Model
 
-`models/best_model.pt` is step 26,500 of a 30,000-step Colab run (about 5 hours on a T4). It has 1.6M parameters. The full run output is in `runs/gpu-main/` on the owner's laptop, not in git.
+`models/best_model.pt` is step 26,500 of a 30,000-step Colab run (about 5 hours on a T4). It has 1.6M parameters. The full run output is in `runs/gpu-main/` on the development laptop, not in git.
 
 | Field | Exact recall, new values (500-conversation validation) | Exact recall, names seen in training (500-case Forget baseline) |
 |---|---|---|
@@ -134,7 +134,7 @@ With live frames and the comparison, a byte took about 45 to 85 ms on battery wi
 ## Next
 
 1. Booth, on `infotel-2026`: run `python scripts/rehearse_browser.py --runs 20` with Wi-Fi off and the laptop plugged in, check the real booth screen, print `booth/fake_cards.pdf`, copy the backup video to USB, and prepare the pitch.
-2. Toolkit, after INFOTEL: decide on making the repository public, then post the community draft and reach out to BDH users. Try `capture` on a larger BDH model to measure the ledger's cost at scale.
+2. Toolkit, after INFOTEL: post the community draft and reach out to BDH users. Try `capture` on a larger BDH model to measure the ledger's cost at scale.
 
 ## Known design points
 

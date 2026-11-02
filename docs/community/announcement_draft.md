@@ -1,6 +1,6 @@
 # Draft: post for pathwaycom/bdh GitHub Discussions
 
-Not posted. Before posting: make the repository public, replace `<REPO LINK>`, and rerun `python -m dragonscope.benchmark` if the code has changed.
+Not posted. Before posting, rerun `python -m dragonscope.benchmark` if the code has changed.
 
 Suggested category: Show and tell.
 
@@ -39,6 +39,6 @@ Limits: the model only recalls within its 512-byte training length, so longer ro
 2. Are there memory behaviours you'd want to see in the dashboard that it doesn't show?
 3. Has anyone measured how much of `rho` a single token contributes in larger BDH models?
 
-Code, benchmark and a getting-started notebook: `<REPO LINK>`
+Code, benchmark and a getting-started notebook: https://github.com/theoreticalraccoon/dragonscope
 
 Thanks to the BDH authors for releasing the code. DragonScope vendors it unmodified, with its MIT licence.
