@@ -23,6 +23,8 @@ python -m dragonscope.server
 
 Then open http://127.0.0.1:8000.
 
+The version frozen for FITIS INFOTEL 2026 is tag `infotel-2026-v1`, on branch `infotel-2026`. Its tested package versions are in `requirements-lock.txt`.
+
 ## Layout
 
 | Path | Purpose |

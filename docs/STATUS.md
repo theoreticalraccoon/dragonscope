@@ -1,8 +1,16 @@
 # Status
 
-Last updated: Sun Nov 1, 2026, evening. Update this before ending any session.
+Last updated: Mon Nov 2, 2026. Update this before ending any session.
 
-The project is ahead of schedule: the Day 1 gates, the card and NIC part of the Day 2 recall gate, the Tuesday Forget go/no-go, the Tuesday backend and the Wednesday dashboard are all done. **Next is Thursday's rehearsal.**
+## Frozen: the INFOTEL demo
+
+The demo and its website dashboard are frozen at tag **`infotel-2026-v1`**. Branch **`infotel-2026`** starts from the same commit. Only booth-blocking fixes go on that branch, with no new features, and the tag does not move. The tested package versions are in `requirements-lock.txt`.
+
+To run the frozen version: `git checkout infotel-2026`, then `python -m dragonscope.server`.
+
+## Proposed direction, not started
+
+The owner is considering making DragonScope an open-source toolkit for BDH developers, a debugger for AI memory, with the bank demo as its flagship example. It would offer memory capture, a memory map, edit and forget, and a forgetting report. Nothing has been built for this. New work should go on `main` and leave the frozen branch alone.
 
 ## Dashboard
 
