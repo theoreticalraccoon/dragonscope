@@ -17,11 +17,28 @@ Everything is in `booth/`. Start with `booth/CHECKLIST.md`.
 - **Backup video:** `booth/backup_video.webm`, 47.6 s at 1080p, recorded from the real flow. It is committed on `infotel-2026` only.
 - **Printed cards:** `booth/fake_cards.pdf`, with 8 cards. The card numbers are published payment test numbers, as random Luhn-valid numbers could match real cards. Each NIC uses day 999, so it cannot be real. Each number passed 5 of 5 full flows on the trained model, in two conversation shapes.
 
-## Toolkit direction
+## Toolkit (on `main`)
 
+The owner has made DragonScope an open-source toolkit for BDH developers, a debugger for AI memory, with the bank demo as its flagship example. Toolkit work goes on `main` and leaves the frozen branch alone. The repository is still private, and the MIT `LICENSE` names the owner; both are the owner's call.
 
+Built and tested:
 
-The owner has decided to make DragonScope an open-source toolkit for BDH developers, a debugger for AI memory, with the bank demo as its flagship example. It would offer memory capture, a memory map, edit and forget, and a forgetting report. New work goes on `main`, and leaves the frozen branch alone.
+- **API:** `ds.capture`, `MemoryCapture` (`read`, `generate`, `find`, `forget` with `subtract` or `rebuild`, `rebuild`, `residual`, `fork`, `reset`, `neuron_strength`, `history`), `ds.forgetting_report` with `Case` and `Probe`, and `ds.dashboard`. Tested on the demo model and another BDH size. A report fails if its probes could not recall the value before forgetting.
+- **Dashboard:** `dragonscope-dashboard --model models/best_model.pt` or `--untrained`, at http://127.0.0.1:8100. Checked in Edge with reduced motion on, with both models: no page errors, no off-laptop requests, no horizontal scroll at phone width, and after Forget the secret was in neither the page, its inputs, nor its state, including the report form.
+- **Benchmark:** `python -m dragonscope.benchmark`, then `python scripts/benchmark_charts.py`. Results and charts are in `docs/benchmark/` and the README. Run on an idle machine: an earlier run during pytest gave unreliable timings and was discarded.
+- **Notebook:** `notebooks/getting_started.ipynb`, executed with outputs saved.
+- **Packaging:** `pyproject.toml`, with extras `dashboard`, `charts` and `dev`. A wheel installed outside the repo served every static file and installed the `dragonscope-dashboard` command. It is not on PyPI.
+- **Community post:** a draft only, in `docs/community/announcement_draft.md`. Nothing has been posted. It needs the repository made public first.
+
+Benchmark results, forgetting a 19-byte card, 20 conversations per length:
+
+| Conversation | `subtract` | `rebuild` | Residual | Recall before, after |
+|---|---|---|---|---|
+| 138 bytes | 30 ms | 65 ms | 5.2% | 100%, 0% |
+| 428 bytes | 33 ms | 287 ms | 4.3% | 60%, 0% |
+| 3,208 bytes | 60 ms | 6.5 s | 4.0% | not measurable |
+
+`subtract` is about flat with length and costs about 2.5 ms per erased byte. `rebuild` grows faster than linearly. Within the trained length, both methods gave the same recall, kept values and replies. Beyond 512 bytes the model recalls nothing, so those rows are cost and state only, and replies from the two methods matched in just 22 to 42% of probes. On random weights the residual was about 46%. The ledger is 50 to 70 KB a byte. Do not claim more than this.
 
 ## Dashboard
 
@@ -116,8 +133,8 @@ With live frames and the comparison, a byte took about 45 to 85 ms on battery wi
 
 ## Next
 
-1. Rehearse on Thursday: 20 clean offline runs in a row in the browser, with Wi-Fi off and the laptop plugged in. Check readability on the booth screen.
-2. Record the backup video, print the fake card numbers, and prepare the pitch and judge questions.
+1. Booth, on `infotel-2026`: run `python scripts/rehearse_browser.py --runs 20` with Wi-Fi off and the laptop plugged in, check the real booth screen, print `booth/fake_cards.pdf`, copy the backup video to USB, and prepare the pitch.
+2. Toolkit, after INFOTEL: decide on making the repository public, then post the community draft and reach out to BDH users. Try `capture` on a larger BDH model to measure the ledger's cost at scale.
 
 ## Known design points
 

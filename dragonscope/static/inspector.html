@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DragonScope</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="inspector.css">
+</head>
+<body>
+  <div class="session-line" title="Session length"><div id="session-fill"></div></div>
+
+  <header>
+    <strong>DragonScope</strong>
+    <span class="dim">Memory debugger for BDH models</span>
+    <span class="dim" id="connection" hidden>Reconnecting…</span>
+    <button class="link fake-note" id="reset" type="button">Reset session</button>
+  </header>
+
+  <main>
+    <section class="story tools">
+      <div class="block">
+        <label for="input">Read</label>
+        <textarea id="input" rows="3" spellcheck="false" placeholder="Text for the model to read"></textarea>
+        <div class="row">
+          <button class="tool primary" id="read" type="button">Read</button>
+          <button class="tool" id="generate" type="button">Generate</button>
+          <label class="inline">up to <input id="count" type="number" min="1" max="200" value="70"> bytes</label>
+        </div>
+      </div>
+
+      <div class="block grow">
+        <div class="row between">
+          <label>Memory holds</label>
+          <span class="dim small">Select text to watch or forget it</span>
+        </div>
+        <div class="text" id="text" tabindex="0"></div>
+      </div>
+
+      <div class="block">
+        <div class="row">
+          <input id="target" spellcheck="false" placeholder="Selected text, or type it here" aria-label="Text to watch or forget">
+          <button class="tool" id="watch" type="button">Watch</button>
+        </div>
+        <div class="row">
+          <button class="tool danger" id="forget" type="button">Forget</button>
+          <label class="inline">using
+            <select id="method">
+              <option value="subtract">subtract: targeted, leaves a residual</option>
+              <option value="rebuild">rebuild: rereads the session, exact</option>
+            </select>
+          </label>
+          <button class="tool" id="rebuild" type="button">Rebuild now</button>
+        </div>
+        <p class="error" id="error" role="alert"></p>
+      </div>
+
+      <details class="block" id="report-form">
+        <summary>Forgetting report</summary>
+        <p class="dim small">Tests a copy of this session, before and after forgetting. This session does not change.</p>
+        <input id="r-forget" spellcheck="false" placeholder="Text to forget" aria-label="Text to forget">
+        <div class="row"><input id="r-prompt" spellcheck="false" placeholder="Prompt that asks for it" aria-label="Prompt that asks for it"></div>
+        <div class="row">
+          <input id="r-kept-prompt" spellcheck="false" placeholder="Prompt for something to keep" aria-label="Prompt for something to keep">
+          <input id="r-kept" spellcheck="false" placeholder="Expected answer" aria-label="Expected answer to keep">
+        </div>
+        <button class="tool" id="run-report" type="button">Run report</button>
+      </details>
+    </section>
+
+    <section class="brain">
+      <div class="hud" id="hud"></div>
+      <div class="brain-wrap" id="brain-wrap">
+        <canvas id="brain" role="img" aria-label="The model's neurons, shown inside a brain outline. They light up as they fire, and red marks the effect of watched text."></canvas>
+        <ul class="legend">
+          <li><span class="swatch fire"></span>Firing now</li>
+          <li><span class="swatch hot"></span>Changed by watched text</li>
+        </ul>
+        <div class="readout" id="readout" hidden>
+          <p class="readout-label" id="readout-label"></p>
+          <div class="readout-track"><div id="readout-fill"></div></div>
+        </div>
+      </div>
+      <div id="results"></div>
+      <p class="dim caption">Running live, slowed so the activity can be watched. Every dot is a real neuron, and neighbours respond to similar characters. Regions are heads. Lines are the strongest learned connections in use. Red shows how watched text changes firing, compared with a copy of memory without it. The brain outline is an illustration.</p>
+    </section>
+  </main>
+
+  <script src="vendor/three.min.js"></script>
+  <script src="brain.js"></script>
+  <script src="inspector.js"></script>
+</body>
+</html>

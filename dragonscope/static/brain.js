@@ -37,8 +37,8 @@ const brain = (() => {
   }
 
   // Where one neuron sits: its head picks the region, and its u and v pick the place.
-  function neuronPosition(head, u, v) {
-    const side = head < 2 ? -1 : 1;
+  function neuronPosition(head, heads, u, v) {
+    const side = head < heads / 2 ? -1 : 1;
     const end = head % 2 === 0 ? 1 : -1;
     const y = (v * 2 - 1) * 0.97;
     const ring = Math.sqrt(1 - y * y);
@@ -304,7 +304,7 @@ const brain = (() => {
       positions = new Float32Array(count * 3);
       for (let index = 0; index < count; index += 1) {
         const head = Math.floor(index / model.per_head);
-        positions.set(neuronPosition(head, model.u[index], model.v[index]), index * 3);
+        positions.set(neuronPosition(head, model.heads, model.u[index], model.v[index]), index * 3);
       }
       fire = new Float32Array(count);
       recall = new Float32Array(count);
