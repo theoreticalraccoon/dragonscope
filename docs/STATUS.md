@@ -8,9 +8,20 @@ The demo and its website dashboard are frozen at tag **`infotel-2026-v1`**. Bran
 
 To run the frozen version: `git checkout infotel-2026`, then `python -m dragonscope.server`.
 
-## Proposed direction, not started
+## Booth kit
 
-The owner is considering making DragonScope an open-source toolkit for BDH developers, a debugger for AI memory, with the bank demo as its flagship example. It would offer memory capture, a memory map, edit and forget, and a forgetting report. Nothing has been built for this. New work should go on `main` and leave the frozen branch alone.
+Everything is in `booth/`. Start with `booth/CHECKLIST.md`.
+
+- **Rehearsal: 20 of 20 clean in a real browser**, on the Iris Xe GPU, with off-laptop requests blocked, no page errors and a mean run of 16 s. **Wi-Fi was still on,** because turning it off would have cut the coding session. The true offline run is one command in the checklist and is still to do.
+- **Screens:** no scrolling or clipping at any size tested, from 1280x720 to 4K. At 4K with 100% scaling, chat text is too small, so the checklist says to use 200%. The real booth screen has not been seen.
+- **Backup video:** `booth/backup_video.webm`, 47.6 s at 1080p, recorded from the real flow. It is committed on `infotel-2026` only.
+- **Printed cards:** `booth/fake_cards.pdf`, with 8 cards. The card numbers are published payment test numbers, as random Luhn-valid numbers could match real cards. Each NIC uses day 999, so it cannot be real. Each number passed 5 of 5 full flows on the trained model, in two conversation shapes.
+
+## Toolkit direction
+
+
+
+The owner has decided to make DragonScope an open-source toolkit for BDH developers, a debugger for AI memory, with the bank demo as its flagship example. It would offer memory capture, a memory map, edit and forget, and a forgetting report. New work goes on `main`, and leaves the frozen branch alone.
 
 ## Dashboard
 

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DragonScope demo cards</title>
+  <style>
+    @page { size: A4; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: #101114; }
+    h1 { margin: 0 0 1mm; font-size: 15pt; font-weight: 600; }
+    .intro { margin: 0 0 5mm; font-size: 9.5pt; line-height: 1.35; color: #3a3b40; }
+    .sheet { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+    .card {
+      height: 58mm;
+      padding: 5mm 6mm;
+      display: flex;
+      flex-direction: column;
+      border: 0.4mm dashed #55565c;
+      border-radius: 3mm;
+      break-inside: avoid;
+    }
+    .top { display: flex; justify-content: space-between; align-items: baseline; font-size: 10pt; font-weight: 600; }
+    .specimen { font-size: 8pt; font-weight: 700; letter-spacing: .08em; }
+    .label { margin-top: 3.5mm; font-size: 8pt; color: #3a3b40; }
+    .number { font: 600 15.5pt/1.2 Consolas, "Courier New", monospace; white-space: nowrap; }
+    .nic { font-size: 12pt; }
+    .foot { margin-top: auto; font-size: 8pt; line-height: 1.25; color: #3a3b40; }
+  </style>
+</head>
+<body>
+  <h1>DragonScope demo cards</h1>
+  <p class="intro">Cut along the dashed lines and give one to each visitor. These are not real. The card numbers are published payment test numbers, and each NIC uses day 999, which no real NIC can contain.</p>
+  <div class="sheet" id="sheet"></div>
+  <script>
+    const NUMBERS = [
+      ["4242 4242 4242 4242", "859991234V"],
+      ["5555 5555 5555 4444", "199099912345"],
+      ["4012 8888 8888 1881", "909994567V"],
+      ["5105 1051 0510 5100", "198599945678"],
+      ["4000 0566 5566 5556", "929990123X"],
+      ["5200 8282 8282 8210", "200099967890"],
+      ["4111 1111 1111 1111", "889997654V"],
+      ["5425 2334 3010 9903", "197899911223"],
+    ];
+    const sheet = document.getElementById("sheet");
+    NUMBERS.forEach(([card, nic]) => {
+      const node = document.createElement("div");
+      node.className = "card";
+      node.innerHTML = `
+        <div class="top"><span>DragonScope demo</span><span class="specimen">FAKE: NOT A REAL CARD</span></div>
+        <div class="label">Card number</div>
+        <div class="number">${card}</div>
+        <div class="label">NIC</div>
+        <div class="number nic">${nic}</div>
+        <div class="foot">Type this into the demo, then make the AI forget it.</div>`;
+      sheet.append(node);
+    });
+  </script>
+</body>
+</html>
