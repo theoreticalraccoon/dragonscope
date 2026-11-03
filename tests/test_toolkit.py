@@ -261,3 +261,58 @@ def test_dashboard_refuses_other_origins(client):
     with pytest.raises(WebSocketDisconnect):
         with client.websocket_connect("/ws", headers={"origin": "http://evil.example"}):
             pass
+
+
+# Ledger modes
+
+
+def test_compact_ledger_is_smaller_and_nearly_exact(model):
+    exact = ds.capture(model).read(TEXT)
+    compact = ds.capture(model, ledger="compact").read(TEXT)
+    assert torch.equal(exact.rho, compact.rho)
+    assert compact.ledger_bytes * 2 <= exact.ledger_bytes
+    exact.forget(SECRET, "subtract")
+    result = compact.forget(SECRET, "subtract")
+    assert result.method == "subtract"
+    assert float((exact.rho - compact.rho).norm() / exact.rho.norm()) < 1e-3
+    assert compact.memory.ledger.keys() == exact.memory.ledger.keys()
+
+
+def test_no_ledger_falls_back_to_rebuild(model):
+    memory = ds.capture(model, ledger="off").read(TEXT)
+    assert memory.ledger_bytes == 0
+    with pytest.raises(ValueError):
+        memory.forget(SECRET, "subtract")
+    result = memory.forget(SECRET)
+    assert result.method == "rebuild"
+    assert result.residual < 1e-5
+    assert SECRET not in memory.text
+
+
+def test_ledger_can_skip_text_that_will_never_be_forgotten(model):
+    memory = ds.capture(model)
+    memory.read("System: be helpful.\n", ledger=False)
+    unrecorded = memory.position
+    memory.read(TEXT)
+    assert set(memory.memory.ledger) == set(range(unrecorded, memory.position))
+    assert memory.forget(SECRET).method == "subtract"
+    assert memory.forget("helpful").method == "rebuild"
+    # A rebuild keeps entries only for text that had them.
+    assert min(memory.memory.ledger) >= unrecorded
+    assert memory.memory.recording
+
+
+def test_capture_works_with_a_separate_copy_of_upstream_bdh():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "dragonscope" / "vendor" / "bdh" / "bdh.py"
+    spec = importlib.util.spec_from_file_location("upstream_bdh", path)
+    upstream = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(upstream)
+    torch.manual_seed(2)
+    other = upstream.BDH(upstream.BDHConfig(n_layer=2, n_embd=64, n_head=2, mlp_internal_dim_multiplier=8)).eval()
+    data = b"hello there"
+    memory = ds.capture(other).read(data)
+    full = other(torch.tensor([list(data)]))[0][0, -1]
+    assert (memory.memory.next_logits - full).abs().max() < 1e-3

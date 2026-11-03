@@ -77,3 +77,14 @@ def test_validation_names_are_held_out():
     for train_values, val_values in zip(train, val):
         assert val_values
         assert set(train_values).isdisjoint(val_values)
+
+
+def test_padding_makes_longer_conversations_with_correct_answers():
+    dataset = build_dataset(200, 3, "train", max_bytes=2048, pad_to=2048)
+    lengths = np.diff(dataset["offsets"])
+    assert lengths.max() <= 2048
+    assert lengths.mean() > 600
+    for conversation, start, end, kind, *_ in dataset["answers"]:
+        reply = conversation_at(dataset, conversation)[start:end]
+        assert reply.endswith("\n")
+        assert (reply == REFUSAL + "\n") == (kind == KIND_REFUSAL)

@@ -9,6 +9,12 @@
 
 ``capture`` works with the BDH model from pathwaycom/bdh, of any size. Other
 implementations have not been tested and may need an adapter.
+
+Memory: ``subtract`` needs a ledger entry for each byte it may erase, and that
+grows with the session (about 68 KB a byte for the demo model, 0.8 MB for the
+published BDH size). ``ledger="compact"`` cuts this at least 2 times (2.7 for the demo model), and
+``read(text, ledger=False)`` skips text that will never need forgetting.
+Forgetting unrecorded text falls back to ``rebuild``.
 """
 
 from __future__ import annotations
@@ -18,10 +24,10 @@ from dataclasses import dataclass, field
 
 import torch
 
-from dragonscope.engine import SessionMemory
+from dragonscope.engine import LEDGER_MODES, SessionMemory
 from dragonscope.vendor.bdh.bdh import BDH
 
-METHODS = ("subtract", "rebuild")
+METHODS = ("auto", "subtract", "rebuild")
 Target = str | bytes | tuple[int, int]
 
 
@@ -43,7 +49,7 @@ class Step:
 
 @dataclass
 class ForgetResult:
-    method: str
+    method: str  # The method used: "subtract" or "rebuild".
     copies: int
     bytes_erased: int
     seconds: float
@@ -56,10 +62,13 @@ class MemoryCapture:
 
     ``keep_states`` copies the whole memory at every byte, for later analysis. That
     is 8 MB a byte for the DragonScope model, and far more for larger ones.
+    ``ledger`` is ``"exact"``, ``"compact"`` or ``"off"``; see the module docstring.
     """
 
-    def __init__(self, model: BDH, keep_states: bool = False):
-        self.memory = SessionMemory(model)
+    def __init__(self, model: BDH, keep_states: bool = False, ledger: str = "exact"):
+        if ledger not in LEDGER_MODES:
+            raise ValueError(f"unknown ledger mode {ledger!r}: use one of {LEDGER_MODES}")
+        self.memory = SessionMemory(model, ledger)
         self.keep_states = keep_states
         self.history: list[Step] = []
         self._firing: list[int] = []
@@ -79,6 +88,11 @@ class MemoryCapture:
     @property
     def position(self) -> int:
         return self.memory.position
+
+    @property
+    def ledger_bytes(self) -> int:
+        """Memory held by the ledger that ``subtract`` uses, in bytes."""
+        return self.memory.ledger_bytes()
 
     @property
     def text(self) -> str:
@@ -112,26 +126,47 @@ class MemoryCapture:
                 )
             )
 
-    def read(self, data: str | bytes) -> "MemoryCapture":
-        """Read text into memory, recording each byte."""
+    def _ledger(self, ledger: bool | None):
+        """Switch ledger recording for one call, returning the previous setting."""
+        previous = self.memory.recording
+        if ledger is not None:
+            self.memory.recording = bool(ledger)
+        return previous
+
+    def read(self, data: str | bytes, ledger: bool | None = None) -> "MemoryCapture":
+        """Read text into memory, recording each byte.
+
+        ``ledger=False`` keeps no ledger entries for this text, to save memory.
+        It can still be forgotten, by ``rebuild``.
+        """
         data = _as_bytes(data)
         if not data:
             raise ValueError("read() needs at least one byte")
-        self._record(data)
+        previous = self._ledger(ledger)
+        try:
+            self._record(data)
+        finally:
+            self.memory.recording = previous
         return self
 
-    def generate(self, max_bytes: int = 70, stop: str | None = "\n") -> str:
+    def generate(
+        self, max_bytes: int = 70, stop: str | None = "\n", ledger: bool | None = None
+    ) -> str:
         """Write greedily, stopping after ``stop``. What is written enters memory."""
         if self.memory.next_logits is None:
             raise RuntimeError("read something first: forgetting clears the pending output")
         stop_byte = None if stop is None else _as_bytes(stop)[0]
         output = bytearray()
-        for _ in range(max_bytes):
-            byte = int(self.memory.next_logits.argmax())
-            self._record(bytes([byte]))
-            output.append(byte)
-            if byte == stop_byte:
-                break
+        previous = self._ledger(ledger)
+        try:
+            for _ in range(max_bytes):
+                byte = int(self.memory.next_logits.argmax())
+                self._record(bytes([byte]))
+                output.append(byte)
+                if byte == stop_byte:
+                    break
+        finally:
+            self.memory.recording = previous
         return output.decode("utf-8", errors="replace")
 
     def next_byte_probabilities(self) -> torch.Tensor:
@@ -145,15 +180,17 @@ class MemoryCapture:
         return self.memory.find_positions(_as_bytes(value))
 
     def forget(
-        self, target: Target, method: str = "subtract", measure: bool = True
+        self, target: Target, method: str = "auto", measure: bool = True
     ) -> ForgetResult:
         """Remove every copy of a value, or one ``(start, end)`` range, from memory.
 
         ``subtract`` removes the bytes' own traces, at a cost set by how much is
-        erased. It leaves a residual in rounds after the first. ``rebuild`` recomputes
-        memory from the surviving text, at a cost set by how long the session is,
-        and matches a session that never read the bytes. ``measure`` also computes the
-        residual, which itself costs one replay and is not included in ``seconds``.
+        erased. It leaves a residual in rounds after the first, and needs ledger
+        entries. ``rebuild`` recomputes memory from the surviving text, at a cost set
+        by how long the session is, and matches a session that never read the bytes.
+        ``auto`` uses ``subtract`` when every byte has a ledger entry, else ``rebuild``.
+        ``measure`` also computes the residual, which itself costs one replay and is
+        not included in ``seconds``.
         """
         if method not in METHODS:
             raise ValueError(f"unknown method {method!r}: use one of {METHODS}")
@@ -161,13 +198,27 @@ class MemoryCapture:
         if not spans:
             raise ValueError("that value is not in memory")
 
+        engine = self.memory
+        recorded = all(
+            position in engine.ledger
+            for start, end in spans
+            for position in range(start, end)
+            if position in engine.bytes
+        )
+        if method == "auto":
+            method = "subtract" if recorded else "rebuild"
+        elif method == "subtract" and not recorded:
+            raise ValueError("some of this text has no ledger entries: use rebuild or auto")
+
         started = time.perf_counter()
         erased: list[int] = []
-        engine_method = "subtract" if method == "subtract" else "replay"
-        for start, end in spans[:-1]:
-            erased += self.memory.forget(start, end, "subtract")
-        start, end = spans[-1]
-        erased += self.memory.forget(start, end, engine_method)
+        if method == "subtract":
+            for start, end in spans:
+                erased += engine.forget(start, end, "subtract")
+        else:
+            for start, end in spans:
+                erased += engine.forget(start, end, "replay", defer_rebuild=True)
+            engine.rebuild()
         seconds = time.perf_counter() - started
 
         self._scrub_history(erased)
@@ -213,7 +264,9 @@ class MemoryCapture:
 
         A fork records from this point, and starts with an empty history.
         """
-        other = MemoryCapture(self.model, keep_states=self.keep_states)
+        other = MemoryCapture(
+            self.model, keep_states=self.keep_states, ledger=self.memory.ledger_mode
+        )
         observer = other.memory.observer
         other.memory = self.memory.fork()
         other.memory.observer = observer
@@ -225,6 +278,6 @@ class MemoryCapture:
         self.history = []
 
 
-def capture(model: BDH, keep_states: bool = False) -> MemoryCapture:
+def capture(model: BDH, keep_states: bool = False, ledger: str = "exact") -> MemoryCapture:
     """Start recording a BDH model's memory."""
-    return MemoryCapture(model, keep_states=keep_states)
+    return MemoryCapture(model, keep_states=keep_states, ledger=ledger)

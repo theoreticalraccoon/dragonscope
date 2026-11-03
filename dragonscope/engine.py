@@ -18,6 +18,17 @@ Forget methods:
   layers, so layers >= 1 can keep a residual; ``residual_from_replay`` measures it.
 * ``replay`` rebuilds ``rho`` from the surviving bytes at their original
   positions, which matches a session that never saw the forgotten bytes.
+
+Ledger modes, set per session, trade memory for how ``subtract`` works:
+
+* ``exact`` keeps each byte's entry in full precision. This is the default.
+* ``compact`` stores entries in float16, keeping only the non-zero part of
+  ``QR`` when that is smaller. It is at least 2 times smaller, and 2.7 times for
+  the demo model. Subtracting it adds a relative error of about 1e-4 to ``rho``.
+* ``off`` keeps no entries. Forgetting such bytes needs ``replay``.
+
+``recording`` can also be switched off for parts of a session, such as text
+that will never need forgetting, which saves the most memory.
 """
 
 from __future__ import annotations
@@ -28,6 +39,11 @@ import torch
 import torch.nn.functional as F
 
 from dragonscope.vendor.bdh.bdh import BDH, Attention
+
+
+LEDGER_MODES = ("exact", "compact", "off")
+# Bytes subtracted together, which bounds the temporary memory used.
+SUBTRACT_CHUNK = 128
 
 
 @dataclass
@@ -41,12 +57,69 @@ class LedgerEntry:
     v: torch.Tensor  # (n_layer, D)
     qr: torch.Tensor  # (n_layer, n_head, N)
 
+    @property
+    def nbytes(self) -> int:
+        return self.v.numel() * self.v.element_size() + self.qr.numel() * self.qr.element_size()
+
+
+class CompactLedgerEntry:
+    """A ``LedgerEntry`` stored in float16, keeping only the non-zero part of ``qr``
+    when that is smaller.
+
+    Sparse storage costs an index per value, so a byte that fires most neurons is
+    kept dense instead. Either way ``qr`` takes at most half the space of an exact
+    entry. ``v`` and ``qr`` read back as full tensors in the original dtype.
+    """
+
+    __slots__ = ("_v", "_index", "_values", "_shape", "_dtype")
+
+    def __init__(self, v: torch.Tensor, qr: torch.Tensor):
+        flat = qr.reshape(-1)
+        index_dtype = torch.int16 if flat.numel() <= 32768 else torch.int32
+        index = flat.nonzero().squeeze(1)
+        sparse_bytes = index.numel() * (index_dtype.itemsize + 2)
+        if sparse_bytes < flat.numel() * 2:
+            self._index = index.to(index_dtype)
+            self._values = flat[index].to(torch.float16)
+        else:
+            self._index = None
+            self._values = flat.to(torch.float16)
+        self._v = v.to(torch.float16)
+        self._shape = tuple(qr.shape)
+        self._dtype = qr.dtype
+
+    @property
+    def v(self) -> torch.Tensor:
+        return self._v.to(self._dtype)
+
+    @property
+    def qr(self) -> torch.Tensor:
+        if self._index is None:
+            return self._values.to(self._dtype).view(self._shape)
+        size = 1
+        for dimension in self._shape:
+            size *= dimension
+        flat = torch.zeros(size, dtype=self._dtype, device=self._values.device)
+        flat[self._index.long()] = self._values.to(self._dtype)
+        return flat.view(self._shape)
+
+    @property
+    def nbytes(self) -> int:
+        tensors = [self._v, self._values] + ([] if self._index is None else [self._index])
+        return sum(tensor.numel() * tensor.element_size() for tensor in tensors)
+
 
 class SessionMemory:
     """Reads bytes one at a time, keeping ``rho`` and a per-position ledger."""
 
-    def __init__(self, model: BDH):
+    def __init__(self, model: BDH, ledger: str = "exact"):
+        if ledger not in LEDGER_MODES:
+            raise ValueError(f"unknown ledger mode {ledger!r}: use one of {LEDGER_MODES}")
         self.model = model.eval()
+        self.ledger_mode = ledger
+        # Set to False to read bytes without ledger entries. They can then only be
+        # forgotten with ``replay``.
+        self.recording = True
         config = model.config
         self.n_layer = config.n_layer
         self.n_head = config.n_head
@@ -75,7 +148,8 @@ class SessionMemory:
 
     def fork(self) -> "SessionMemory":
         """Return an independent copy, so one history can try several continuations."""
-        other = SessionMemory(self.model)
+        other = SessionMemory(self.model, self.ledger_mode)
+        other.recording = self.recording
         other.rho = self.rho.clone()
         other.position = self.position
         other.bytes = dict(self.bytes)
@@ -133,10 +207,18 @@ class SessionMemory:
             x = model.ln(x + model.ln(y_mlp))
 
         self.bytes[position] = byte
-        self.ledger[position] = LedgerEntry(
-            v=torch.stack(entry_v), qr=torch.stack(entry_qr)
-        )
+        if self.recording and self.ledger_mode != "off":
+            self.ledger[position] = self._entry(torch.stack(entry_v), torch.stack(entry_qr))
         return x.view(self.D) @ model.lm_head
+
+    def _entry(self, v: torch.Tensor, qr: torch.Tensor):
+        if self.ledger_mode == "compact":
+            return CompactLedgerEntry(v, qr)
+        return LedgerEntry(v=v, qr=qr)
+
+    def ledger_bytes(self) -> int:
+        """Return the memory held by ledger entries, in bytes."""
+        return sum(entry.nbytes for entry in self.ledger.values())
 
     def read(self, data: bytes) -> torch.Tensor:
         """Read bytes into memory and return one row of next-byte logits per byte."""
@@ -162,27 +244,40 @@ class SessionMemory:
                 break
         return bytes(output)
 
-    def forget(self, start: int, end: int, method: str = "subtract") -> list[int]:
-        """Erase positions ``start <= p < end`` and return those actually erased."""
+    def forget(
+        self, start: int, end: int, method: str = "subtract", defer_rebuild: bool = False
+    ) -> list[int]:
+        """Erase positions ``start <= p < end`` and return those actually erased.
+
+        With ``replay`` and ``defer_rebuild``, the bytes are dropped but ``rho`` still
+        holds them until the caller runs ``rebuild()``. Use it to erase several spans
+        with one rebuild.
+        """
         if method not in ("subtract", "replay"):
             raise ValueError(f"unknown forget method: {method}")
         positions = [p for p in range(start, end) if p in self.bytes]
 
         if method == "subtract":
-            for position in positions:
-                entry = self.ledger[position]
+            missing = [p for p in positions if p not in self.ledger]
+            if missing:
+                raise ValueError(
+                    f"{len(missing)} of these bytes have no ledger entry, so use replay"
+                )
+            # One pass over rho per chunk of bytes, rather than one per byte.
+            for first in range(0, len(positions), SUBTRACT_CHUNK):
+                entries = [self.ledger[p] for p in positions[first : first + SUBTRACT_CHUNK]]
+                v = torch.stack([entry.v for entry in entries], dim=1)  # L, T, D
+                qr = torch.stack([entry.qr for entry in entries], dim=2)  # L, H, T, N
                 for level in range(self.n_layer):
-                    self.rho[level] -= torch.einsum(
-                        "d,hn->hdn", entry.v[level], entry.qr[level]
-                    )
+                    self.rho[level] -= torch.einsum("td,htn->hdn", v[level], qr[level])
 
         for position in positions:
             del self.bytes[position]
-            del self.ledger[position]
+            self.ledger.pop(position, None)
         # These logits were computed while the secret was still in memory.
         self.next_logits = None
 
-        if method == "replay":
+        if method == "replay" and not defer_rebuild:
             self.rebuild()
         return positions
 
@@ -195,6 +290,7 @@ class SessionMemory:
         byte. ``residual_from_replay`` still steps, so it checks this independently.
         """
         survivors = sorted(self.bytes.items())
+        recorded = set(self.ledger)
         position = self.position
         self.reset()
         self.position = position
@@ -205,9 +301,10 @@ class SessionMemory:
         self.rho = rho
         for slot, (original_position, byte) in enumerate(survivors):
             self.bytes[original_position] = byte
-            self.ledger[original_position] = LedgerEntry(
-                v=v[:, slot].clone(), qr=qr[:, :, slot].clone()
-            )
+            if original_position in recorded:
+                self.ledger[original_position] = self._entry(
+                    v[:, slot].clone(), qr[:, :, slot].clone()
+                )
 
     def _forward_all(self, survivors: list[tuple[int, int]]):
         """Run all ``(position, byte)`` pairs at once and return logits, rho, v and qr."""
@@ -248,7 +345,7 @@ class SessionMemory:
         ``total`` is the relative Frobenius distance, and ``per_layer`` splits it
         by layer. A session that used ``replay`` reports zero up to float error.
         """
-        clean = SessionMemory(self.model)
+        clean = SessionMemory(self.model, "off")
         for position, byte in sorted(self.bytes.items()):
             clean._step(byte, position)
         difference = self.rho - clean.rho

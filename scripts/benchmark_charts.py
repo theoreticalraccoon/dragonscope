@@ -77,7 +77,7 @@ def length_chart(results, theme, path):
                     xytext=(10, 0), textcoords="offset points", va="center",
                     fontsize=10, color=theme["ink"])
     ax.set_xlim(lengths[0] / 1.2, lengths[-1] * 1.6)
-    ax.set_ylim(15, 12000)
+    ax.set_ylim(2, 12000)
     ax.set_xticks(lengths)
     ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:,.0f}"))
     ax.xaxis.set_minor_formatter(FuncFormatter(lambda *_: ""))
@@ -107,7 +107,7 @@ def size_chart(results, theme, path):
     ax.annotate(f"Subtract  {milliseconds(values[-1], None)}", (sizes[-1], values[-1]),
                 xytext=(10, 0), textcoords="offset points", va="center", fontsize=10, color=theme["ink"])
     ax.set_xlim(sizes[0] / 1.3, sizes[-1] * 1.4)
-    ax.set_ylim(5, 5000)
+    ax.set_ylim(2, 5000)
     ax.set_xticks(sizes)
     ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:,.0f}"))
     ax.xaxis.set_minor_formatter(FuncFormatter(lambda *_: ""))

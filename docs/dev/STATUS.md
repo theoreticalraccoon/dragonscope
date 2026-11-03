@@ -19,26 +19,32 @@ Everything is in `booth/`. Start with `booth/CHECKLIST.md`.
 
 ## Toolkit (on `main`)
 
-DragonScope is now an open-source toolkit for BDH developers, a debugger for AI memory, with the bank demo as its flagship example. Toolkit work goes on `main` and leaves the frozen branch alone. The repository is public, under the MIT `LICENSE`.
+DragonScope is an open-source toolkit for BDH developers, a debugger for AI memory, with the bank demo as its flagship example. Toolkit work goes on `main` and leaves the frozen branch alone. The repository is public, under the MIT `LICENSE`, with a description and topics set on GitHub. Version 0.2.0, unreleased; see `CHANGELOG.md`.
 
 Built and tested:
 
-- **API:** `ds.capture`, `MemoryCapture` (`read`, `generate`, `find`, `forget` with `subtract` or `rebuild`, `rebuild`, `residual`, `fork`, `reset`, `neuron_strength`, `history`), `ds.forgetting_report` with `Case` and `Probe`, and `ds.dashboard`. Tested on the demo model and another BDH size. A report fails if its probes could not recall the value before forgetting.
+- **API:** `ds.capture(model, ledger=...)`, `MemoryCapture` (`read(text, ledger=None)`, `generate`, `find`, `forget` with `auto`, `subtract` or `rebuild`, `rebuild`, `residual`, `ledger_bytes`, `fork`, `reset`, `neuron_strength`, `history`), `ds.forgetting_report` with `Case` and `Probe`, and `ds.dashboard`. Tested on the demo model, another BDH size, and a separately imported copy of upstream `bdh.py`. A report fails if its probes could not recall the value before forgetting.
+- **Ledger modes:** `exact` (default), `compact` (float16, zeros dropped where smaller: at least 2 times smaller, 2.7 on the demo model, about 1e-4 extra error) and `off`. `read(text, ledger=False)` skips entries for text that will never need forgetting. `forget(method="auto")` falls back to `rebuild` for unrecorded bytes.
+- **Batched subtract:** one pass over `rho` per 128 erased bytes instead of one per byte. A card number now takes about 5 ms instead of 30, and 320 bytes 34 ms instead of 806.
 - **Dashboard:** `dragonscope-dashboard --model models/best_model.pt` or `--untrained`, at http://127.0.0.1:8100. Checked in Edge with reduced motion on, with both models: no page errors, no off-laptop requests, no horizontal scroll at phone width, and after Forget the secret was in neither the page, its inputs, nor its state, including the report form.
-- **Benchmark:** `python -m dragonscope.benchmark`, then `python scripts/benchmark_charts.py`. Results and charts are in `docs/benchmark/` and the README. Run on an idle machine: an earlier run during pytest gave unreliable timings and was discarded.
+- **Benchmarks:** `python -m dragonscope.benchmark`, `python -m dragonscope.benchmark --scale` for the published BDH size, then `python scripts/benchmark_charts.py`. Results and charts are in `docs/benchmark/` and the README. Run them on an idle machine.
+- **Long conversations:** `python -m dragonscope.data --max-bytes 2048 --pad-to 2048`, and the `long` run in `notebooks/train_gpu.ipynb`, which now clones the public repo. Default data is unchanged byte for byte. Two training steps ran on CPU. **No long model has been trained**: that is a Colab run.
 - **Notebook:** `notebooks/getting_started.ipynb`, executed with outputs saved.
-- **Packaging:** `pyproject.toml`, with extras `dashboard`, `charts` and `dev`. A wheel installed outside the repo served every static file and installed the `dragonscope-dashboard` command. It is not on PyPI.
-- **Community post:** a draft only, in `docs/community/announcement_draft.md`. Nothing has been posted.
+- **Packaging and CI:** `pyproject.toml`, with extras `dashboard`, `charts` and `dev`. A wheel installed outside the repo served every static file and installed the `dragonscope-dashboard` command. Not on PyPI. GitHub Actions runs the full suite on every push to `main`.
+- **Docs:** public pages are the README, `docs/EVALUATION.md`, `docs/PROTOCOL.md`, `CONTRIBUTING.md` and `CHANGELOG.md`. Internal notes are in `docs/dev/`.
+- **Community post:** a draft only, kept outside git in `notes/announcement_draft.md`. Nothing has been posted.
 
-Benchmark results, forgetting a 19-byte card, 20 conversations per length:
+Demo model, forgetting a 19-byte card, 20 conversations per length:
 
 | Conversation | `subtract` | `rebuild` | Residual | Recall before, after |
 |---|---|---|---|---|
-| 138 bytes | 30 ms | 65 ms | 5.2% | 100%, 0% |
-| 428 bytes | 33 ms | 287 ms | 4.3% | 60%, 0% |
-| 3,208 bytes | 60 ms | 6.5 s | 4.0% | not measurable |
+| 138 bytes | 4.9 ms | 90 ms | 5.2% | 100%, 0% |
+| 428 bytes | 4.9 ms | 318 ms | 4.3% | 60%, 0% |
+| 3,208 bytes | 4.0 ms | 5.7 s | 4.0% | not measurable |
 
-`subtract` is about flat with length and costs about 2.5 ms per erased byte. `rebuild` grows faster than linearly. Within the trained length, both methods gave the same recall, kept values and replies. Beyond 512 bytes the model recalls nothing, so those rows are cost and state only, and replies from the two methods matched in just 22 to 42% of probes. On random weights the residual was about 46%. The ledger is 50 to 70 KB a byte. Do not claim more than this.
+Published BDH size (6 layers, 32,768 neurons, 25.3M parameters), random weights: reading takes about 175 ms a byte, `rho` is 201 MB, and the ledger is 793 KB a byte exact or 396 KB compact. At 1,024 bytes, `subtract` took 239 ms and `rebuild` 11.7 s.
+
+Within the trained length, both methods gave the same recall, kept values and replies. Beyond 512 bytes the demo model recalls nothing, so those rows are cost and state only, and replies from the two methods matched in just 22 to 42% of probes. On random weights the residual was about 46%. Do not claim more than this.
 
 ## Dashboard
 
@@ -134,7 +140,7 @@ With live frames and the comparison, a byte took about 45 to 85 ms on battery wi
 ## Next
 
 1. Booth, on `infotel-2026`: run `python scripts/rehearse_browser.py --runs 20` with Wi-Fi off and the laptop plugged in, check the real booth screen, print `booth/fake_cards.pdf`, copy the backup video to USB, and prepare the pitch.
-2. Toolkit, after INFOTEL: post the community draft and reach out to BDH users. Try `capture` on a larger BDH model to measure the ledger's cost at scale.
+2. Toolkit, after INFOTEL: train the `long` model on Colab and rerun the benchmark with it, to measure recall past 512 bytes. Post the community draft and reach out to BDH users. Publish to PyPI if people want it.
 
 ## Known design points
 

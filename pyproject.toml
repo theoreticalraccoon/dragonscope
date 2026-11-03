@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dragonscope"
-version = "0.1.0"
+version = "0.2.0"
 description = "A debugger for the memory of BDH (Dragon Hatchling) models: capture, map, forget and audit."
 readme = "README.md"
 requires-python = ">=3.10"

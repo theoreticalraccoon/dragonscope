@@ -73,7 +73,7 @@ class Inspector:
             return None
         shadow = self.capture.memory.fork()
         for position in positions:
-            shadow.forget(position, position + 1, "subtract")
+            shadow.forget(position, position + 1, "replay", defer_rebuild=True)
         shadow.rebuild()
         shadow.observer = self.recorder.watch_counterfactual
         return shadow
@@ -156,7 +156,9 @@ class Inspector:
             raise InspectorError("Choose some text to forget.")
         try:
             result = self.capture.forget(target, method)
-        except ValueError:
+        except ValueError as error:
+            if "ledger" in str(error):
+                raise InspectorError("Some of that text has no ledger entries. Use rebuild.") from None
             raise InspectorError("That text is not in memory.") from None
         if not result.bytes_erased:
             raise InspectorError("That text is not in memory.")
@@ -231,16 +233,14 @@ class Inspector:
         if positions:
             held = torch.zeros_like(engine.rho)
             for position in positions:
-                entry = engine.ledger[position]
+                entry = engine.ledger.get(position)
+                if entry is None:
+                    continue
                 for level in range(engine.n_layer):
                     held[level] += torch.einsum("d,hn->hdn", entry.v[level], entry.qr[level])
             share = (held.norm(dim=(0, 2)).flatten() / strength.clamp_min(1e-12)).clamp_max(1.0)
         ledger_entries = len(engine.ledger)
-        ledger_bytes = 0
-        if engine.ledger:
-            entry = next(iter(engine.ledger.values()))
-            per_byte = entry.v.numel() * entry.v.element_size() + entry.qr.numel() * entry.qr.element_size()
-            ledger_bytes = per_byte * ledger_entries
+        ledger_bytes = engine.ledger_bytes()
         return {
             "type": "state",
             "runs": runs,
@@ -287,7 +287,7 @@ class Inspector:
             self.watched = []
         elif kind == "forget":
             method = message.get("method", "subtract")
-            if method not in ("subtract", "rebuild"):
+            if method not in ("auto", "subtract", "rebuild"):
                 raise InspectorError("Unknown method.")
             text = message.get("text")
             self.forget(

@@ -1,0 +1,39 @@
+{
+ "config": {
+  "n_layer": 6,
+  "n_embd": 256,
+  "n_head": 4,
+  "neurons": 32768,
+  "parameters": 25296896
+ },
+ "weights": "random",
+ "threads": 4,
+ "rho_mb": 201.326592,
+ "secret_bytes": 19,
+ "lengths": [
+  {
+   "length": 256,
+   "read_ms_per_byte": 180.35282382811602,
+   "ledger_kb_per_byte_exact": 792.576,
+   "ledger_kb_per_byte_compact": 396.288,
+   "subtract_ms": 70.96509999973932,
+   "rebuild_ms": 2387.5692000001436
+  },
+  {
+   "length": 512,
+   "read_ms_per_byte": 178.4441939453103,
+   "ledger_kb_per_byte_exact": 792.576,
+   "ledger_kb_per_byte_compact": 396.288,
+   "subtract_ms": 160.9528999979375,
+   "rebuild_ms": 5089.5348000049125
+  },
+  {
+   "length": 1024,
+   "read_ms_per_byte": 173.22316943359795,
+   "ledger_kb_per_byte_exact": 792.576,
+   "ledger_kb_per_byte_compact": 396.288,
+   "subtract_ms": 239.43839999992633,
+   "rebuild_ms": 11680.735699999786
+  }
+ ]
+}

@@ -6,6 +6,11 @@ rather than invent digits. Blank and masked mimic what is left behind after
 Forget: the sentence survives but the value is gone.
 
 Run: ``python -m dragonscope.data --out data``
+
+For a model that recalls across longer sessions, pad conversations with small talk
+between the statements and the questions:
+``python -m dragonscope.data --out data-long --max-bytes 2048 --pad-to 2048``.
+Without ``--pad-to`` the output is unchanged, byte for byte.
 """
 
 from __future__ import annotations
@@ -63,6 +68,19 @@ SMALL_TALK = (
     ("Do you have a mobile app?", "Yes, our app is free to download."),
     ("Hello, can you help me?", "Yes, how can I help?"),
 )
+# Used only to pad long conversations, so the default data stays unchanged.
+FILLER = SMALL_TALK + (
+    ("Is the branch open on Saturday?", "Most branches open 9 to 1 on Saturdays."),
+    ("How do I reset my PIN?", "You can reset it at any ATM or in the app."),
+    ("Can I open a savings account online?", "Yes, it takes about ten minutes."),
+    ("What is the daily ATM limit?", "The standard limit is 100,000 rupees."),
+    ("Do you charge for SMS alerts?", "Alerts cost 50 rupees a month."),
+    ("Where is the nearest ATM?", "The app shows ATMs near you."),
+    ("How long does a transfer take?", "Transfers between our accounts are instant."),
+    ("Thanks for your help.", "You are welcome."),
+)
+# Room left after padding for the questions and their answers.
+QUESTION_ROOM = 200
 
 
 def luhn_check_digit(digits: str) -> str:
@@ -123,7 +141,9 @@ class Answer:
     state: int
 
 
-def build_conversation(rng: Random, split: str) -> tuple[str, list[Answer]]:
+def build_conversation(
+    rng: Random, split: str, pad_to: int | None = None
+) -> tuple[str, list[Answer]]:
     first_names, last_names, branches = split_names(split)
     values = {
         "card": random_card(rng),
@@ -152,6 +172,16 @@ def build_conversation(rng: Random, split: str) -> tuple[str, list[Answer]]:
             question, reply = rng.choice(SMALL_TALK)
             text += f"U: {question}\nA: {reply}\n"
 
+    if pad_to is not None:
+        # A random target spreads the distance between a statement and its question.
+        target = rng.randint(len(text), max(len(text), pad_to - QUESTION_ROOM))
+        while True:
+            question, reply = rng.choice(FILLER)
+            turn = f"U: {question}\nA: {reply}\n"
+            if len(text) + len(turn) > target:
+                break
+            text += turn
+
     answers = []
     for field in rng.sample(FIELDS, k=rng.randint(1, 2)):
         text += f"U: {rng.choice(QUESTIONS[field])}\nA: "
@@ -175,16 +205,22 @@ def build_conversation(rng: Random, split: str) -> tuple[str, list[Answer]]:
     return text, answers
 
 
-def build_dataset(count: int, seed: int, split: str) -> dict[str, np.ndarray]:
+def build_dataset(
+    count: int,
+    seed: int,
+    split: str,
+    max_bytes: int = MAX_BYTES,
+    pad_to: int | None = None,
+) -> dict[str, np.ndarray]:
     rng = Random(seed)
     chunks: list[bytes] = []
     offsets = [0]
     rows: list[tuple[int, int, int, int, int, int]] = []
     for conversation in range(count):
-        text, answers = build_conversation(rng, split)
+        text, answers = build_conversation(rng, split, pad_to)
         encoded = text.encode("ascii")
-        if len(encoded) > MAX_BYTES:
-            raise ValueError(f"conversation is {len(encoded)} bytes, over {MAX_BYTES}")
+        if len(encoded) > max_bytes:
+            raise ValueError(f"conversation is {len(encoded)} bytes, over {max_bytes}")
         chunks.append(encoded)
         offsets.append(offsets[-1] + len(encoded))
         rows.extend(
@@ -203,14 +239,18 @@ def main() -> None:
     parser.add_argument("--train", type=int, default=60_000)
     parser.add_argument("--val", type=int, default=2_000)
     parser.add_argument("--seed", type=int, default=20261101)
+    parser.add_argument("--max-bytes", type=int, default=MAX_BYTES)
+    parser.add_argument("--pad-to", type=int, default=None, help="pad with small talk up to this length")
     args = parser.parse_args()
+    if args.pad_to is not None and args.pad_to > args.max_bytes:
+        parser.error("--pad-to cannot be more than --max-bytes")
 
     args.out.mkdir(parents=True, exist_ok=True)
     for split, count, seed in (
         ("train", args.train, args.seed),
         ("val", args.val, args.seed + 1),
     ):
-        dataset = build_dataset(count, seed, split)
+        dataset = build_dataset(count, seed, split, args.max_bytes, args.pad_to)
         np.savez(args.out / f"{split}.npz", **dataset)
         lengths = np.diff(dataset["offsets"])
         print(

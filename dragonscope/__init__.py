@@ -2,9 +2,16 @@
 
 from dragonscope.report import Case, ForgettingReport, Probe, forgetting_report
 from dragonscope.toolkit import ForgetResult, MemoryCapture, Step, capture
-from dragonscope.train import load_model
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
+
+
+def load_model(path, device: str = "cpu"):
+    """Load a model saved by ``dragonscope.train``, for inference."""
+    # Imported here so ``python -m dragonscope.train`` and ``.data`` run cleanly.
+    from dragonscope.train import load_model as load
+
+    return load(path, device)
 
 
 def dashboard(memory, **options):

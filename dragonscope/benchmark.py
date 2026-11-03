@@ -5,6 +5,7 @@ definition. So the targeted edit has to answer two questions: how close does it 
 and how much cheaper is it?
 
 Run: python -m dragonscope.benchmark --model models/best_model.pt --out docs/benchmark
+Add ``--scale`` to measure cost and memory at the published BDH size instead.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from dragonscope.data import ACKNOWLEDGEMENTS, ANSWERS, QUESTIONS, SMALL_TALK, S
 from dragonscope.report import Case, Probe, forgetting_report
 from dragonscope.toolkit import capture
 from dragonscope.train import load_model
+from dragonscope.vendor.bdh.bdh import BDH, BDHConfig
 
 LENGTHS = (100, 200, 400, 800, 1600, 3200)
 # The model was trained on conversations of up to 512 bytes.
@@ -76,10 +78,7 @@ def measure_length(model, length: int, cases: int, seed: int) -> dict:
             started = time.perf_counter()
             trial.forget(start, end, "replay")
             rebuild.append(time.perf_counter() - started)
-    ledger_bytes = sum(
-        entry.v.numel() * entry.v.element_size() + entry.qr.numel() * entry.qr.element_size()
-        for entry in base.memory.ledger.values()
-    )
+    ledger_bytes = base.memory.ledger_bytes()
     subtract_ms = statistics.median(subtract) * 1000
     rebuild_ms = statistics.median(rebuild) * 1000
     return {
@@ -121,6 +120,72 @@ def measure_erased_size(model, seed: int) -> list[dict]:
     return rows
 
 
+def measure_scale(lengths=(256, 512, 1024), seed: int = 20261102) -> dict:
+    """Cost and memory at the published BDH default size, with random weights.
+
+    Random weights fire more neurons than trained ones, so the compact ledger saves
+    less here than it would on a trained model.
+    """
+    torch.manual_seed(seed)
+    config = BDHConfig()
+    model = BDH(config).eval()
+    rng = Random(seed)
+    rows = []
+    for length in lengths:
+        text, card, _ = build_conversation(rng, length)
+        data = text.encode("ascii")[:length]
+        if card.encode("ascii") not in data:
+            raise ValueError("the card must be inside the measured text")
+        sizes = {}
+        for mode in ("exact", "compact"):
+            memory = capture(model, ledger=mode)
+            memory.memory.observer = None
+            started = time.perf_counter()
+            memory.memory.read(data)
+            read_seconds = time.perf_counter() - started
+            sizes[mode] = memory.ledger_bytes / len(data)
+            if mode == "exact":
+                base = memory
+                per_byte_ms = read_seconds / len(data) * 1000
+        start, end = base.memory.find_positions(card.encode("ascii"))[0]
+        subtract, rebuild = [], []
+        for _ in range(3):
+            trial = base.memory.fork()
+            started = time.perf_counter()
+            trial.forget(start, end, "subtract")
+            subtract.append(time.perf_counter() - started)
+            trial = base.memory.fork()
+            started = time.perf_counter()
+            trial.forget(start, end, "replay")
+            rebuild.append(time.perf_counter() - started)
+        rows.append(
+            {
+                "length": len(data),
+                "read_ms_per_byte": per_byte_ms,
+                "ledger_kb_per_byte_exact": sizes["exact"] / 1e3,
+                "ledger_kb_per_byte_compact": sizes["compact"] / 1e3,
+                "subtract_ms": statistics.median(subtract) * 1000,
+                "rebuild_ms": statistics.median(rebuild) * 1000,
+            }
+        )
+        del base, trial
+    rho_bytes = config.n_layer * config.n_embd * config.mlp_internal_dim_multiplier * config.n_embd * 4
+    return {
+        "config": {
+            "n_layer": config.n_layer,
+            "n_embd": config.n_embd,
+            "n_head": config.n_head,
+            "neurons": config.mlp_internal_dim_multiplier * config.n_embd,
+            "parameters": sum(parameter.numel() for parameter in model.parameters()),
+        },
+        "weights": "random",
+        "threads": torch.get_num_threads(),
+        "rho_mb": rho_bytes / 1e6,
+        "secret_bytes": len(card),
+        "lengths": rows,
+    }
+
+
 def run(model, lengths=LENGTHS, cases: int = 20, seed: int = 20261102, progress: bool = False) -> dict:
     results = []
     for length in lengths:
@@ -149,8 +214,15 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=Path("docs/benchmark"))
     parser.add_argument("--cases", type=int, default=20)
     parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--scale", action="store_true", help="measure at the published BDH size")
     args = parser.parse_args()
     torch.set_num_threads(args.threads)
+    args.out.mkdir(parents=True, exist_ok=True)
+    if args.scale:
+        scale = measure_scale()
+        (args.out / "scale.json").write_text(json.dumps(scale, indent=1), encoding="utf-8")
+        print(json.dumps(scale, indent=1))
+        return
     results = run(load_model(args.model), cases=args.cases, progress=True)
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "results.json").write_text(json.dumps(results, indent=1), encoding="utf-8")
