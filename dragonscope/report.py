@@ -141,6 +141,12 @@ def forgetting_report(
     """Run every probe before forgetting, after ``subtract`` and after ``rebuild``."""
     if not cases:
         raise ValueError("a report needs at least one case")
+    abouts = {probe.about for case in cases for probe in case.probes}
+    if not abouts <= {"forgotten", "kept"}:
+        raise ValueError('a probe\'s "about" must be "forgotten" or "kept"')
+    # Without one, the report could pass without testing forgetting at all.
+    if "forgotten" not in abouts:
+        raise ValueError("a report needs at least one probe about a forgotten value")
     scores = {c: {"forgotten": [], "kept": []} for c in CONDITIONS}
     seconds = {"subtract": [], "rebuild": []}
     residual = {"subtract": [], "rebuild": []}

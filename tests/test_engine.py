@@ -155,6 +155,19 @@ def test_subtract_is_exact_at_layer_zero_and_reports_deeper_residual(model):
     assert max(residual["per_layer"][1:]) > residual["per_layer"][0]
 
 
+def test_batched_residual_matches_stepping(model):
+    session = SessionMemory(model)
+    session.read(TEXT)
+    session.forget(SECRET_START, SECRET_END, "subtract")
+    stepped = session.residual_from_replay()
+    batched = session.residual_from_replay(stepped=False)
+    assert abs(batched["total"] - stepped["total"]) < 1e-4
+    for a, b in zip(batched["per_layer"], stepped["per_layer"]):
+        assert abs(a - b) < 1e-4
+    empty = SessionMemory(model)
+    assert empty.residual_from_replay(stepped=False)["total"] == 0
+
+
 def test_session_keeps_reading_after_forget(model):
     session = SessionMemory(model)
     session.read(TEXT)

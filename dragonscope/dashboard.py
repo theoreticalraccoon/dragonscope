@@ -205,8 +205,8 @@ class Inspector:
             if not prompt or not expect or about not in ("forgotten", "kept"):
                 raise InspectorError("Each probe needs a prompt and expected text.")
             parsed.append(Probe(prompt, expect, about))
-        if not parsed:
-            raise InspectorError("Add at least one probe.")
+        if not any(probe.about == "forgotten" for probe in parsed):
+            raise InspectorError("Add a probe that asks for the forgotten text.")
         report = forgetting_report(
             self.capture.model, [Case(text, [forget], parsed)]
         ).to_dict()

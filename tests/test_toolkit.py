@@ -61,7 +61,10 @@ def test_rebuild_method_matches_never_reading_it(model):
 def test_rebuild_clears_a_residual(model):
     memory = ds.capture(model).read(TEXT)
     memory.forget(SECRET)
+    assert memory.residual()["total"] > 0.001
     memory.rebuild()
+    # Stepping byte by byte checks the batched rebuild independently.
+    assert memory.residual(stepped=True)["total"] < 1e-5
     assert memory.residual()["total"] < 1e-5
 
 
@@ -116,6 +119,15 @@ def test_report_checks_its_own_probes_could_recall(model):
     assert "FAIL" in report.to_markdown()
     assert report.residual["rebuild"] < 1e-5
     assert report.residual["subtract"] > 0.001
+
+
+def test_report_needs_a_probe_about_the_forgotten_value(model):
+    kept_only = ds.Case(TEXT, [SECRET], [ds.Probe("U: Hi?\nA: ", "Yes", "kept")])
+    with pytest.raises(ValueError):
+        ds.forgetting_report(model, [kept_only], max_reply=5)
+    unknown = ds.Case(TEXT, [SECRET], [ds.Probe("U: What?\nA: ", SECRET, "both")])
+    with pytest.raises(ValueError):
+        ds.forgetting_report(model, [unknown], max_reply=5)
 
 
 def test_report_on_the_trained_model():
@@ -223,6 +235,11 @@ def test_dashboard_errors_do_not_repeat_what_was_sent(client):
             {"type": "forget", "text": SECRET},
             {"type": "watch", "text": SECRET},
             {"type": "report", "forget": SECRET, "probes": []},
+            {
+                "type": "report",
+                "forget": SECRET,
+                "probes": [{"prompt": "U: Hi?\nA: ", "expect": "Yes", "about": "kept"}],
+            },
             {"type": "generate", "count": 5},
             {"type": "nope"},
             {"type": "forget", "text": SECRET, "method": "shred"},

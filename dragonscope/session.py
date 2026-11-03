@@ -272,24 +272,6 @@ class DemoSession:
             for position in range(finding.start, finding.end)
         }
 
-    def _measure_dependence(
-        self, frames: list[dict], first_position: int, excluded: set[int]
-    ) -> None:
-        """Set how much each written byte's probability relies on flagged memory."""
-        if not excluded:
-            return
-        memory = self.memory
-        actual = memory.logits_without(set())
-        without = memory.logits_without(excluded)
-        for offset, frame in enumerate(frames):
-            position = first_position + offset
-            if frame["phase"] != "write":
-                continue
-            byte = memory.bytes[position]
-            p_with = actual[position - 1].softmax(dim=0)[byte]
-            p_without = without[position - 1].softmax(dim=0)[byte]
-            frame["depends"] = round(max(0.0, float(p_with - p_without)), 3)
-
     def _flagged_rho(self) -> torch.Tensor | None:
         """Return the part of ``rho`` written by flagged bytes, if there are any."""
         memory = self.memory

@@ -37,13 +37,20 @@ const brain = (() => {
   }
 
   // Where one neuron sits: its head picks the region, and its u and v pick the place.
+  // Each half holds half the heads, in slices from front to back. Slices alternate
+  // direction so neighbouring heads meet at the same edge. With 4 heads, each takes
+  // a quarter: front and back of each half.
   function neuronPosition(head, heads, u, v) {
-    const side = head < heads / 2 ? -1 : 1;
-    const end = head % 2 === 0 ? 1 : -1;
+    const left = Math.ceil(heads / 2);
+    const side = head < left ? -1 : 1;
+    const slice = side < 0 ? head : head - left;
+    const slices = side < 0 ? left : heads - left;
+    const width = Math.PI / slices;
+    const top = Math.PI / 2 - slice * width;
+    const angle = slice % 2 === 0 ? top - width + u * width : top - u * width;
     const y = (v * 2 - 1) * 0.97;
     const ring = Math.sqrt(1 - y * y);
-    const angle = u * Math.PI / 2;
-    return cortex(Math.cos(angle) * ring * side, y, Math.sin(angle) * ring * end, side);
+    return cortex(Math.cos(angle) * ring * side, y, Math.sin(angle) * ring, side);
   }
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });

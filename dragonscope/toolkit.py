@@ -250,9 +250,14 @@ class MemoryCapture:
         """Recompute memory from the surviving text, clearing any residual."""
         self.memory.rebuild()
 
-    def residual(self) -> dict:
-        """Measure the distance from a session that never read what was forgotten."""
-        measured = self.memory.residual_from_replay()
+    def residual(self, stepped: bool = False) -> dict:
+        """Measure the distance from a session that never read what was forgotten.
+
+        The clean copy comes from the same batched pass as ``rebuild``. ``stepped``
+        rereads byte by byte instead: about 10 times slower, but independent of
+        ``rebuild``.
+        """
+        measured = self.memory.residual_from_replay(stepped=stepped)
         return {"total": measured["total"], "per_round": measured["per_layer"]}
 
     def neuron_strength(self) -> torch.Tensor:

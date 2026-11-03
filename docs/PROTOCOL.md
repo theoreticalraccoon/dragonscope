@@ -2,7 +2,7 @@
 
 The dashboard in `dragonscope/static/` talks to `python -m dragonscope.server` at `ws://127.0.0.1:8000/ws`. Messages are JSON. There is one shared session, and every connected client receives each update. A connection from another web origin is refused.
 
-**Replace your whole view with each `state` message, and keep no earlier copy.** This is how a forgotten value leaves the chat display: `state` is the only message that carries chat text, so do not store it in history, logs or `localStorage`.
+**Replace your whole view with each `state` message, and keep no earlier copy.** This is how a forgotten value leaves the chat display. `state` carries the chat text, and each `frame` carries only the one character being computed. Do not store either in history, logs or `localStorage`, and drop frames when the next `state` arrives.
 
 ## Client to server
 

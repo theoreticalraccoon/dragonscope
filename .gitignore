@@ -16,9 +16,6 @@ dragonscope_colab.zip
 
 dragonscope-runs-*.zip
 
-# Kept only on the infotel-2026 branch, to keep main light.
-booth/backup_video.webm
-
 # Packaging output
 build/
 dist/

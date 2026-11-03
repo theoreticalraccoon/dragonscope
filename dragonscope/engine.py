@@ -339,15 +339,25 @@ class SessionMemory:
         # n_layer, T, D and n_layer, nh, T, N
         return logits, rho, torch.stack(all_v), torch.stack(all_qr)
 
-    def residual_from_replay(self) -> dict[str, list[float] | float]:
+    @torch.no_grad()
+    def residual_from_replay(self, stepped: bool = True) -> dict[str, list[float] | float]:
         """Compare ``rho`` with a clean rebuild of the surviving bytes.
 
         ``total`` is the relative Frobenius distance, and ``per_layer`` splits it
         by layer. A session that used ``replay`` reports zero up to float error.
+
+        ``stepped`` rereads byte by byte, which checks ``rebuild`` independently.
+        Otherwise the clean copy comes from the same batched pass as ``rebuild``,
+        which is about 10 times faster.
         """
         clean = SessionMemory(self.model, "off")
-        for position, byte in sorted(self.bytes.items()):
-            clean._step(byte, position)
+        clean.position = self.position
+        survivors = sorted(self.bytes.items())
+        if stepped:
+            for position, byte in survivors:
+                clean._step(byte, position)
+        elif survivors:
+            clean.rho = clean._forward_all(survivors)[1]
         difference = self.rho - clean.rho
         per_layer = []
         for level in range(self.n_layer):

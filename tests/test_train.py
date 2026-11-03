@@ -32,11 +32,11 @@ def test_training_saves_resumes_and_loads_into_the_engine(tmp_path):
     out = tmp_path / "run"
 
     run_training(data, out, 2)
-    assert torch.load(out / "latest.pt", weights_only=False)["step"] == 2
+    assert torch.load(out / "latest.pt", weights_only=True)["step"] == 2
     assert (out / "best_model.pt").exists()
 
     run_training(data, out, 3)
-    assert torch.load(out / "latest.pt", weights_only=False)["step"] == 3
+    assert torch.load(out / "latest.pt", weights_only=True)["step"] == 3
 
     records = [json.loads(line) for line in (out / "metrics.jsonl").open()]
     assert [r["step"] for r in records if "train_loss" in r] == [1, 2, 3]

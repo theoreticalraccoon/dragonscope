@@ -69,8 +69,11 @@ def atomic_save(payload: dict, path: Path) -> None:
 
 
 def load_model(path: Path | str, device: str = "cpu") -> BDH:
-    """Load weights from either ``latest.pt`` or ``best_model.pt``, for inference."""
-    payload = torch.load(path, map_location=device, weights_only=False)
+    """Load weights from either ``latest.pt`` or ``best_model.pt``, for inference.
+
+    ``weights_only`` stops a model file from running code when it is loaded.
+    """
+    payload = torch.load(path, map_location=device, weights_only=True)
     model = BDH(BDHConfig(**payload["config"]))
     model.load_state_dict(payload["model"])
     return model.to(device).eval()
@@ -167,7 +170,7 @@ def main() -> None:
 
     latest = args.out / "latest.pt"
     if latest.exists():
-        payload = torch.load(latest, map_location=device, weights_only=False)
+        payload = torch.load(latest, map_location=device, weights_only=True)
         model.load_state_dict(payload["model"])
         optimizer.load_state_dict(payload["optimizer"])
         generator.bit_generator.state = payload["numpy_rng"]

@@ -9,7 +9,7 @@ pip install -e ".[dashboard,dev]"
 python -m pytest -q
 ```
 
-The tests take about 7 minutes on a laptop CPU.
+The tests take about 6 minutes on a laptop CPU.
 
 ## Rules
 

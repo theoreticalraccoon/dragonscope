@@ -50,14 +50,14 @@ Or open the dashboard from a terminal: `dragonscope-dashboard --model models/bes
 | `memory.generate(max_bytes, stop="\n")` | Writes greedily. What it writes enters memory. |
 | `memory.find(text)` | The positions of every copy of the text in memory. |
 | `memory.forget(target, method="auto")` | `target` is text, bytes or a `(start, end)` range. `auto` uses `subtract` when every byte has a ledger entry, and `rebuild` otherwise. Returns a `ForgetResult` with the method used, copies, bytes erased, time and residual per round. Forgotten bytes leave the history too. |
-| `memory.rebuild()`, `memory.residual()` | Rereads the surviving text into a fresh memory, and measures the distance from doing so. |
+| `memory.rebuild()`, `memory.residual(stepped=False)` | Rereads the surviving text into a fresh memory, and measures the distance from doing so. `stepped=True` rereads byte by byte, which is about 10 times slower but checks `rebuild` independently. |
 | `memory.ledger_bytes` | Memory held by the ledger that `subtract` uses. |
 | `memory.fork()`, `memory.reset()` | An independent copy, and an empty session. |
 | `memory.neuron_strength()` | How much memory each neuron holds, per head. |
 | `ds.forgetting_report(model, cases)` | Runs `ds.Case(text, forget, probes)` cases with `ds.Probe(prompt, expect, about)`. Returns a `ForgettingReport` with `passed`, `to_markdown()`, `to_dict()` and `save()`. |
 | `ds.dashboard(memory, port=8100)` | Opens the dashboard for a session in the background. |
 
-A report fails if its probes could not recall the value before forgetting, so a model that never learned the value cannot earn a pass.
+A report needs at least one probe about a forgotten value, and fails if its probes could not recall the value before forgetting, so a model that never learned the value cannot earn a pass.
 
 ## Forget versus rebuild
 
@@ -138,7 +138,7 @@ pip install -e ".[dashboard,dev]"
 python -m pytest -q
 ```
 
-They take about 7 minutes on a laptop CPU, and run on every push. The stateful engine is checked against the unmodified BDH forward pass, with logits within 1e-3. See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
+They take about 6 minutes on a laptop CPU, and run on every push. The stateful engine is checked against the unmodified BDH forward pass, with logits within 1e-3. See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## Layout
 

@@ -1,6 +1,6 @@
 # Status
 
-Last updated: Mon Nov 2, 2026. Update this before ending any session.
+Last updated: Tue Nov 3, 2026. Update this before ending any session.
 
 ## Frozen: the INFOTEL demo
 
@@ -13,8 +13,9 @@ To run the frozen version: `git checkout infotel-2026`, then `python -m dragonsc
 Everything is in `booth/`. Start with `booth/CHECKLIST.md`.
 
 - **Rehearsal: 20 of 20 clean in a real browser**, on the Iris Xe GPU, with off-laptop requests blocked, no page errors and a mean run of 16 s. **Wi-Fi was still on.** The true offline run is one command in the checklist and is still to do.
+- **Recheck on Nov 3, frozen branch, plugged in:** `booth_check.py --runs 20` gave 20 of 20 clean, with Forget at 0.42 s mean and 0.67 s worst. `rehearse_browser.py --runs 20` gave 20 of 20 clean in Edge, no page errors and 0 requests leaving the laptop, with a mean run of 22.2 s against 16.1 s on Nov 2. Wi-Fi was on, so this does not replace the offline run.
 - **Screens:** no scrolling or clipping at any size tested, from 1280x720 to 4K. At 4K with 100% scaling, chat text is too small, so the checklist says to use 200%. The real booth screen has not been seen.
-- **Backup video:** `booth/backup_video.webm`, 47.6 s at 1080p, recorded from the real flow. It is committed on `infotel-2026` only.
+- **Backup video:** `booth/backup_video.webm`, 47.6 s at 1080p, recorded from the real flow. It is committed on `infotel-2026`, and reached `main` too through the merge of PR #1. It stays in history either way, so it was left tracked.
 - **Printed cards:** `booth/fake_cards.pdf`, with 8 cards. The card numbers are published payment test numbers, as random Luhn-valid numbers could match real cards. Each NIC uses day 999, so it cannot be real. Each number passed 5 of 5 full flows on the trained model, in two conversation shapes.
 
 ## Toolkit (on `main`)
@@ -32,6 +33,7 @@ Built and tested:
 - **Notebook:** `notebooks/getting_started.ipynb`, executed with outputs saved.
 - **Packaging and CI:** `pyproject.toml`, with extras `dashboard`, `charts` and `dev`. A wheel installed outside the repo served every static file and installed the `dragonscope-dashboard` command. Not on PyPI. GitHub Actions runs the full suite on every push to `main`.
 - **Docs:** public pages are the README, `docs/EVALUATION.md`, `docs/PROTOCOL.md`, `CONTRIBUTING.md` and `CHANGELOG.md`. Internal notes are in `docs/dev/`.
+- **Hardening (Nov 3):** `load_model` and training resume load with `weights_only=True`, so a model file cannot run code. `memory.residual()` compares with a batched rebuild: at 2,000 bytes it took 2.4 s against 25 s stepping byte by byte, which made each dashboard Forget slow on long sessions. `residual(stepped=True)` and the engine's default keep the independent check. `forgetting_report` refuses cases with no probe about a forgotten value, as they could pass without testing forgetting. The dashboard brain gives each head its own region for any head count, unchanged for 4. Dead code that called a removed engine method is gone from `session.py` on `main`; it is still on the frozen branch, where nothing calls it.
 - **Community post:** a draft only, kept outside git in `notes/announcement_draft.md`. Nothing has been posted.
 
 Demo model, forgetting a 19-byte card, 20 conversations per length:
