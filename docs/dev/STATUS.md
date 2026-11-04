@@ -1,6 +1,6 @@
 # Status
 
-Last updated: Tue Nov 3, 2026. Update this before ending any session.
+Last updated: Wed Nov 4, 2026. Update this before ending any session.
 
 ## Frozen: the INFOTEL demo
 
@@ -34,6 +34,7 @@ Built and tested:
 - **Packaging and CI:** `pyproject.toml`, with extras `dashboard`, `charts` and `dev`. A wheel installed outside the repo served every static file and installed the `dragonscope-dashboard` command. Not on PyPI. GitHub Actions runs the full suite on every push to `main`.
 - **Docs:** public pages are the README, `docs/EVALUATION.md`, `docs/PROTOCOL.md`, `CONTRIBUTING.md` and `CHANGELOG.md`. Internal notes are in `docs/dev/`.
 - **Hardening (Nov 3):** `load_model` and training resume load with `weights_only=True`, so a model file cannot run code. `memory.residual()` compares with a batched rebuild: at 2,000 bytes it took 2.4 s against 25 s stepping byte by byte, which made each dashboard Forget slow on long sessions. `residual(stepped=True)` and the engine's default keep the independent check. `forgetting_report` refuses cases with no probe about a forgotten value, as they could pass without testing forgetting. The dashboard brain gives each head its own region for any head count, unchanged for 4. Dead code that called a removed engine method is gone from `session.py` on `main`; it is still on the frozen branch, where nothing calls it.
+- **Split-brain gateway (Nov 4, prototype):** `python -m dragonscope.gateway`, at http://127.0.0.1:8200, from the design "Dragonscope: Split-Brain AI for Confidential Data". It is not part of the booth demo. It covers de-identification, random one-request codes, a four-layer leak gate, re-linking, a review console, a hash-chained audit log, forgetting one fact and erasing a case. It runs offline by default, and `--connector anthropic` sends cleared text to Claude, which has not been tried against the real API. The audit log keeps kind and last 4 digits only, with no hashes of values, as the user chose. On 300 synthetic cases, 3.0% of labelled identifiers reached the outgoing text, all names missing from the word lists and with no cue. 0 of 100 clean requests were blocked. The memory check (layer 4) did not beat the rules: no paraphrase was caught at its threshold, and a paraphrase outscored a control in 66% of pairs, where 50% would be chance. It stays report-only. Gaps: no trained name detector, no sign-in or roles, no encryption at rest. See `docs/GATEWAY.md`.
 - **Community post:** a draft only, kept outside git in `notes/announcement_draft.md`. Nothing has been posted.
 
 Demo model, forgetting a 19-byte card, 20 conversations per length:

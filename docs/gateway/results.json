@@ -1,0 +1,74 @@
+{
+  "model": "best_model.pt",
+  "connector": "offline-stub",
+  "leaks": {
+    "cases": 300,
+    "identifiers": 1665,
+    "leaked": 50,
+    "leak_rate": 0.03,
+    "blocked_requests": 0,
+    "by_kind": {
+      "age_90": {
+        "labelled": 15,
+        "leaked": 0
+      },
+      "card": {
+        "labelled": 150,
+        "leaked": 0
+      },
+      "name": {
+        "labelled": 300,
+        "leaked": 50
+      },
+      "nic": {
+        "labelled": 300,
+        "leaked": 0
+      },
+      "phone": {
+        "labelled": 300,
+        "leaked": 0
+      },
+      "place": {
+        "labelled": 300,
+        "leaked": 0
+      },
+      "record": {
+        "labelled": 300,
+        "leaked": 0
+      }
+    },
+    "by_variant": {
+      "listed name": {
+        "identifiers": 812,
+        "leaked": 0
+      },
+      "no cue": {
+        "identifiers": 300,
+        "leaked": 50
+      },
+      "unlisted name": {
+        "identifiers": 553,
+        "leaked": 0
+      }
+    },
+    "seconds_mean": 0.877,
+    "seconds_max": 3.492
+  },
+  "false_blocks": {
+    "clean_requests": 100,
+    "blocked": 0,
+    "rate": 0.0
+  },
+  "memory_check": {
+    "paraphrases": 100,
+    "controls": 100,
+    "rules_layers_1_to_3_caught": 0,
+    "memory_threshold": 3.0,
+    "memory_caught": 0,
+    "memory_false_flags": 0,
+    "paraphrase_score_mean": 1.134,
+    "control_score_mean": 1.103,
+    "separation": 0.661
+  },
+  "seconds_total": 439.0
+}

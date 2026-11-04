@@ -120,6 +120,16 @@ Then open http://127.0.0.1:8000. A visitor gives a fake card number, asks for it
 
 On a 500-case evaluation, exact recall of the forgotten card or NIC went from 100% to 0% with both methods, and other fields stayed at 100%. See [docs/EVALUATION.md](docs/EVALUATION.md).
 
+## Split-brain gateway (prototype)
+
+```bash
+python -m dragonscope.gateway
+```
+
+Then open http://127.0.0.1:8200. BDH holds a confidential case in its memory, and identifiers are replaced with random codes. A four-layer leak gate checks the outgoing text before an outside model sees it, and a named reviewer approves each draft once real values are restored. It runs offline by default; `--connector anthropic` sends the cleared text to Claude.
+
+Measured on synthetic data, 3% of labelled identifiers reached the outgoing text. All were names missing from the word lists and with no cue such as "Patient:". The experimental memory check did not beat the rules. See [docs/GATEWAY.md](docs/GATEWAY.md) for what is built, what is a gap, and legal notes that are not legal advice.
+
 ## Train a model
 
 ```bash
@@ -151,8 +161,9 @@ They take about 6 minutes on a laptop CPU, and run on every push. The stateful e
 | `dragonscope/engine.py` | Stateful inference, the memory `rho`, the ledger and Forget |
 | `dragonscope/activity.py` | Records which neurons really fire for each byte |
 | `dragonscope/server.py`, `session.py`, `detect.py` | The bank demo |
+| `dragonscope/gateway/` | The split-brain gateway prototype and its review console |
 | `dragonscope/data.py`, `train.py`, `evaluate_forget.py` | Synthetic data, training and evaluation |
-| `dragonscope/static/` | Both pages and the 3D brain, with three.js bundled locally |
+| `dragonscope/static/` | The pages and the 3D brain, with three.js bundled locally |
 | `dragonscope/vendor/bdh/` | Unmodified upstream BDH, with its licence |
 | `scripts/` | Booth checks, rehearsal and benchmark charts |
 | `docs/` | Evaluation, benchmark results and the demo's message protocol |

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DragonScope Gateway</title>
+  <link rel="stylesheet" href="/static/gateway.css">
+</head>
+<body>
+  <header>
+    <h1>DragonScope Gateway</h1>
+    <p class="dim">Identifiers stay here. Only text the leak gate clears goes to the outside model, and a named person reviews every draft.</p>
+    <p class="status"><span id="connector"></span> <span id="memory-mode"></span> <span id="audit-valid"></span></p>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="ask-title">
+      <h2 id="ask-title">New request</h2>
+      <form id="ask">
+        <div class="pair">
+          <label>Case reference<input id="case-ref" value="case-1" maxlength="32" required></label>
+          <label>Your name and role<input id="requester" value="Dr A, attending" required></label>
+        </div>
+        <label>Task<input id="task" value="Write a discharge summary." required></label>
+        <label>Case record <span class="dim">(synthetic data only)</span>
+          <textarea id="case-text" rows="9" placeholder="Paste a synthetic record, or load a sample."></textarea>
+        </label>
+        <div class="row">
+          <button type="button" data-sample="clinical">Sample clinical note</button>
+          <button type="button" data-sample="bank">Sample bank case</button>
+          <button type="submit" class="primary" id="send">Check and send</button>
+        </div>
+      </form>
+      <p id="error" class="error" role="alert"></p>
+
+      <h2>Open cases</h2>
+      <div id="cases" class="cases"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="drafts-title">
+      <h2 id="drafts-title">Drafts for review</h2>
+      <label class="reviewer">Reviewer<input id="reviewer" value="Dr B, consultant"></label>
+      <div id="drafts"></div>
+    </section>
+  </main>
+
+  <section class="panel audit" aria-labelledby="audit-title">
+    <h2 id="audit-title">Audit log <span class="dim">(no values, no hashes of values)</span></h2>
+    <div class="table-wrap"><table id="audit"><thead><tr>
+      <th>#</th><th>Time</th><th>Event</th><th>Case</th><th>Details</th>
+    </tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <script src="/static/gateway.js"></script>
+</body>
+</html>
