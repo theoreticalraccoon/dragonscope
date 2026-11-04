@@ -128,7 +128,7 @@ python -m dragonscope.gateway
 
 Then open http://127.0.0.1:8200. BDH holds a confidential case in its memory, and identifiers are replaced with random codes. A four-layer leak gate checks the outgoing text before an outside model sees it, and a named reviewer approves each draft once real values are restored. It runs offline by default; `--connector anthropic` sends the cleared text to Claude.
 
-Measured on synthetic data, 3% of labelled identifiers reached the outgoing text. All were names missing from the word lists and with no cue such as "Patient:". The experimental memory check did not beat the rules. See [docs/GATEWAY.md](docs/GATEWAY.md) for what is built, what is a gap, and legal notes that are not legal advice.
+Measured on synthetic data written by the same author as the rules, no labelled identifier reached the outgoing text, and no clean request was blocked. That is not a real-world rate: one-word names and names in Sinhala or Tamil script would get through. The experimental memory check did not beat the rules. See [docs/GATEWAY.md](docs/GATEWAY.md) for what is built, what is a gap, and legal notes that are not legal advice.
 
 ## Train a model
 

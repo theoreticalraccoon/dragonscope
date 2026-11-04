@@ -61,6 +61,19 @@ def test_each_identifier_type_is_found():
     assert {"name", "nic", "card", "phone", "email", "record", "place", "date", "age_90"} <= found
 
 
+def test_unlisted_names_without_a_cue_are_guessed_from_capitals():
+    assert kinds("Pasindu Samarakoon called the branch.") == ["name"]
+    assert kinds("Yesterday Kavindya Jayasuriya visited.") == ["name"]
+    # Common, place and institution words are not names.
+    assert "name" not in kinds("Seen at Colombo General Hospital in Sri Lanka on Monday.")
+    assert "name" not in kinds("Discharge Summary. Treated and stable.")
+
+
+def test_title_case_headings_in_an_answer_are_not_invented_names():
+    relinked = PlaceholderMap().relink("Discharge Summary\nFollow Up Plan\nStable.")
+    assert relinked.invented == []
+
+
 def test_dates_become_years_and_old_ages_90_plus():
     cleared, _ = deidentify("Admitted on 12 March 2026, aged 93.", PlaceholderMap())
     assert cleared == "Admitted in 2026, aged 90+."

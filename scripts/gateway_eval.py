@@ -24,7 +24,7 @@ import torch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from dragonscope.gateway import Gateway, LeakGate  # noqa: E402
+from dragonscope.gateway import Gateway, LeakGate, identify  # noqa: E402
 from dragonscope.gateway import samples  # noqa: E402
 from dragonscope.gateway.gate import memory_scores, protected_items  # noqa: E402
 from dragonscope.model_config import demo_config  # noqa: E402
@@ -94,6 +94,34 @@ def false_blocks(gateway: Gateway, count: int, rng: Random) -> dict:
     return {"clean_requests": count, "blocked": blocked, "rate": round(blocked / count, 4)}
 
 
+def held_out(gateway: Gateway, count: int, rng: Random) -> dict:
+    """Names the rules were not tuned on, in new phrasings."""
+    labelled, leaked, blocked = Counter(), Counter(), 0
+    for index in range(count):
+        sample = samples.held_out_case(rng)
+        gateway.open_case(f"held-{index}", sample.text)
+        cleared = gateway.submit(f"held-{index}", sample.task, "evaluator").sent_text
+        blocked += cleared is None
+        for kind, value in sample.labels:
+            labelled[kind] += 1
+            if cleared is not None and _present(kind, value, cleared):
+                leaked[kind] += 1
+        gateway.erase_case(f"held-{index}")
+    return {
+        "cases": count,
+        "blocked_requests": blocked,
+        "by_kind": {k: {"labelled": labelled[k], "leaked": leaked[k]} for k in sorted(labelled)},
+    }
+
+
+def over_redaction() -> dict:
+    """Capitalised phrases that are not people but are coded as names anyway."""
+    coded = []
+    for text in samples.PROPER_NOUN_CLEAN:
+        coded += [f.text for f in identify(text) if f.kind == "name"]
+    return {"sentences": len(samples.PROPER_NOUN_CLEAN), "coded_as_names": coded}
+
+
 def memory_check(model: BDH, gate: LeakGate, seeds: int) -> dict:
     """Score paraphrases of a protected occupation against clean controls."""
     paraphrase_scores, control_scores = [], []
@@ -132,6 +160,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cases", type=int, default=300)
     parser.add_argument("--clean", type=int, default=100)
+    parser.add_argument("--held-out", type=int, default=60)
     parser.add_argument("--red-team-seeds", type=int, default=20)
     parser.add_argument("--model", type=Path, default=ROOT / "models" / "best_model.pt")
     parser.add_argument("--out", type=Path, default=ROOT / "docs" / "gateway" / "results.json")
@@ -149,7 +178,9 @@ def main() -> None:
         "model": model_name,
         "connector": gateway.connector.name,
         "leaks": leaks(gateway, samples.build(args.cases, seed=0)),
+        "held_out": held_out(gateway, args.held_out, Random(2)),
         "false_blocks": false_blocks(gateway, args.clean, Random(1)),
+        "over_redaction": over_redaction(),
         "memory_check": memory_check(model, gate, args.red_team_seeds),
     }
     results["seconds_total"] = round(time.perf_counter() - started, 1)

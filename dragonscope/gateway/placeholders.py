@@ -58,7 +58,9 @@ class PlaceholderMap:
 
     def relink(self, text: str) -> "Relinked":
         """Swap codes back to real values, flagging what the map does not explain."""
-        invented = sorted({f.kind for f in identify(text) if f.kind in DIRECT})
+        invented = sorted(
+            {f.kind for f in identify(text, guess_names=False) if f.kind in DIRECT}
+        )
         unknown = sorted({code for code in CODE.findall(text) if code not in self._by_code})
         restored = CODE.sub(lambda m: self._by_code.get(m.group(), m.group()), text)
         return Relinked(restored, invented, len(unknown))

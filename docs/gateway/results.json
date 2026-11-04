@@ -4,8 +4,8 @@
   "leaks": {
     "cases": 300,
     "identifiers": 1665,
-    "leaked": 50,
-    "leak_rate": 0.03,
+    "leaked": 0,
+    "leak_rate": 0.0,
     "blocked_requests": 0,
     "by_kind": {
       "age_90": {
@@ -18,7 +18,7 @@
       },
       "name": {
         "labelled": 300,
-        "leaked": 50
+        "leaked": 0
       },
       "nic": {
         "labelled": 300,
@@ -44,20 +44,45 @@
       },
       "no cue": {
         "identifiers": 300,
-        "leaked": 50
+        "leaked": 0
       },
       "unlisted name": {
         "identifiers": 553,
         "leaked": 0
       }
     },
-    "seconds_mean": 0.877,
-    "seconds_max": 3.492
+    "seconds_mean": 0.326,
+    "seconds_max": 0.461
+  },
+  "held_out": {
+    "cases": 60,
+    "blocked_requests": 0,
+    "by_kind": {
+      "card": {
+        "labelled": 60,
+        "leaked": 0
+      },
+      "name": {
+        "labelled": 60,
+        "leaked": 0
+      },
+      "phone": {
+        "labelled": 60,
+        "leaked": 0
+      }
+    }
   },
   "false_blocks": {
     "clean_requests": 100,
     "blocked": 0,
     "rate": 0.0
+  },
+  "over_redaction": {
+    "sentences": 8,
+    "coded_as_names": [
+      "Lady Ridgeway",
+      "Accident Service"
+    ]
   },
   "memory_check": {
     "paraphrases": 100,
@@ -70,5 +95,5 @@
     "control_score_mean": 1.103,
     "separation": 0.661
   },
-  "seconds_total": 439.0
+  "seconds_total": 173.8
 }

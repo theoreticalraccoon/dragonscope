@@ -9,9 +9,12 @@ Three kinds of finding:
 * **Quasi-identifiers** (exact ages, revealing occupations, rare conditions) stay
   unless the leak gate's combination check decides they single someone out.
 
-Rules and word lists catch what they were written for. Names that are not in the
-lists and appear without a cue such as "Mr" or "Name:" are missed; this module
-stands in for a trained name detector, which the prototype does not have.
+Rules and word lists catch what they were written for. For names outside the
+lists with no cue such as "Mr" or "Name:", a fallback treats a run of two or
+three capitalised words as a name unless a word in it is a known common,
+place or institution word. It misses single-word names and over-redacts unknown
+proper nouns such as an unlisted hospital; this module stands in for a trained
+name detector, which the prototype does not have.
 """
 
 from __future__ import annotations
@@ -74,6 +77,29 @@ _KNOWN_NAMES = sorted(set(FIRST_NAMES) | set(LAST_NAMES), key=len, reverse=True)
 LEXICON_NAME = re.compile(
     r"\b(?:" + "|".join(_KNOWN_NAMES) + r")(?:\s+(?:" + "|".join(_KNOWN_NAMES) + r"))*\b"
 )
+# Fallback for unlisted names: two or three capitalised words in a row.
+PROPER_RUN = re.compile(r"\b[A-Z][a-z]+(?: [A-Z][a-z]+){1,2}\b")
+# Capitalised words that are not names: sentence openers, record words,
+# institutions and calendar words. Trimmed from the ends of a run; inside a run
+# they mean it is not a name.
+NOT_NAME_WORDS = frozenset(
+    """
+    a an the this that these those he she they his her their its it we our you i
+    on in at by for from to of with and or but after before during when while since
+    yesterday today tomorrow tonight then also however later now here there
+    patient customer client caller account card callback next admitted discharged
+    treated seen reviewed transferred referred called visited reported asked said
+    hospital teaching general base district provincial national ward unit clinic
+    centre center emergency department ministry bank branch road street lane mawatha
+    university college school court police station office board authority council
+    commission company limited ltd insurance visa mastercard amex sri lanka
+    monday tuesday wednesday thursday friday saturday sunday
+    january february march april may june july august september october november december
+    summary discharge diagnosis treatment plan history notes note follow up dear regards
+    minister member parliament judge doctor nurse consultant surgeon officer manager
+    mr mrs ms miss dr prof rev hon sir madam
+    """.split()
+)
 PLACE = re.compile(r"\b(?:" + "|".join(sorted(BRANCHES, key=len, reverse=True)) + r")\b")
 
 # Revealing occupations and what they become when generalised.
@@ -125,6 +151,12 @@ OCCUPATION = re.compile(
 CONDITION = re.compile(
     r"\b(?i:" + "|".join(re.escape(c) for c in sorted(CONDITIONS, key=len, reverse=True)) + r")"
 )
+_NOT_NAME = (
+    NOT_NAME_WORDS
+    | {place.lower() for place in BRANCHES}
+    | {word for phrase in [*OCCUPATIONS, *CONDITIONS] for word in re.findall(r"[a-z]+", phrase)}
+    | {month.lower() for month in MONTHS.split("|")}
+)
 
 # Earlier kinds win when two findings overlap.
 PRIORITY = (
@@ -155,7 +187,22 @@ def _year(match: re.Match) -> str:
     return f"in {year}" if match.group("on") else year
 
 
-def _candidates(text: str) -> list[Identifier]:
+def _proper_runs(text: str) -> list[tuple[int, int]]:
+    """Spans of two or three capitalised words that look like an unlisted name."""
+    spans = []
+    for match in PROPER_RUN.finditer(text):
+        words = [(m.start(), m.end()) for m in re.finditer(r"[A-Za-z]+", match.group())]
+        while words and match.group()[slice(*words[0])].lower() in _NOT_NAME:
+            words.pop(0)
+        while words and match.group()[slice(*words[-1])].lower() in _NOT_NAME:
+            words.pop()
+        inner = [match.group()[slice(*w)].lower() for w in words]
+        if len(inner) >= 2 and not any(word in _NOT_NAME for word in inner):
+            spans.append((match.start() + words[0][0], match.start() + words[-1][1]))
+    return spans
+
+
+def _candidates(text: str, guess_names: bool = True) -> list[Identifier]:
     found: list[Identifier] = []
 
     def add(kind: str, start: int, end: int, replacement: str | None = None) -> None:
@@ -187,6 +234,9 @@ def _candidates(text: str) -> list[Identifier]:
             add("name", match.start("name"), match.end("name"))
     for match in LEXICON_NAME.finditer(text):
         add("name", match.start(), match.end())
+    if guess_names:
+        for start, end in _proper_runs(text):
+            add("name", start, end)
     for match in PLACE.finditer(text):
         add("place", match.start(), match.end())
     for match in OCCUPATION.finditer(text):
@@ -226,9 +276,13 @@ def _resolve(candidates: list[Identifier]) -> list[Identifier]:
     return accepted
 
 
-def identify(text: str) -> list[Identifier]:
-    """Return every finding in ``text``, without overlaps, in order."""
-    accepted = _resolve(_candidates(text))
+def identify(text: str, guess_names: bool = True) -> list[Identifier]:
+    """Return every finding in ``text``, without overlaps, in order.
+
+    ``guess_names=False`` skips the capitalised-run fallback, for text such as a
+    model's answer, where headings in title case would read as names.
+    """
+    accepted = _resolve(_candidates(text, guess_names))
     accepted = _resolve(accepted + _name_parts(text, accepted))
     return sorted(accepted, key=lambda f: f.start)
 

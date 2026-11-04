@@ -93,6 +93,41 @@ def build(count: int, seed: int = 0) -> list[Sample]:
     return samples
 
 
+# Held out: written after the name fallback, with names and phrasings the rules
+# were not tuned on.
+HELD_OUT_FIRST = ["Chathuri", "Hasitha", "Nethmi", "Sachin", "Oshadi", "Ravindu"]
+HELD_OUT_LAST = ["Gunasekara", "Wanigasekara", "Munasinghe", "Kularatne", "Edirisinghe"]
+
+
+def held_out_case(rng: Random) -> Sample:
+    """A name mid-sentence, in phrasings the samples above do not use."""
+    name = f"{rng.choice(HELD_OUT_FIRST)} {rng.choice(HELD_OUT_LAST)}"
+    card, phone = random_card(rng), _phone(rng)
+    templates = [
+        f"On {_date(rng)} the branch took a call from {name}, who holds card {card}. "
+        f"Please call back on {phone}.",
+        f"Referred by the family doctor. {name} reports dizziness for a week. "
+        f"Contact {phone}. Card on file {card}.",
+        f"The fraud team spoke to {name} about card {card}; the number given was {phone}.",
+    ]
+    text = rng.choice(templates)
+    labels = [("name", name), ("card", card), ("phone", phone)]
+    return Sample("held_out", text, "Draft a short reply.", labels)
+
+
+# Capitalised phrases that are not people, to count over-redaction.
+PROPER_NOUN_CLEAN = [
+    "Seen at the National Hospital and referred to the Eye Clinic.",
+    "Referred to Lady Ridgeway Hospital for follow-up.",
+    "The Central Bank guidelines apply to this dispute.",
+    "Reviewed by the Medical Officer in the Accident Service.",
+    "The patient is a member of the Cricket Board.",
+    "Transferred from Base Hospital to Teaching Hospital.",
+    "The customer banks with Commercial Bank and Sampath Bank.",
+    "Seen in the Outpatient Department on a Monday.",
+]
+
+
 # Indirect references to a protected occupation, with no listed word in them.
 PARAPHRASES = [
     "The patient leads the fisheries ministry.",

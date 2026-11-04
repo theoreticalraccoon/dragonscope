@@ -13,6 +13,7 @@
 - `forgetting_report` refuses cases with no probe about a forgotten value, which could otherwise pass without testing forgetting.
 - The dashboard places neurons in separate regions for any number of heads.
 - Split-brain gateway prototype, `python -m dragonscope.gateway`: it covers de-identification, random one-request codes, a four-layer leak gate, re-linking, a review console, a hash-chained audit log with no values, forgetting one fact and erasing a case. It runs offline by default. The optional `gateway-api` extra sends cleared text to Claude. Measured with `scripts/gateway_eval.py`; see `docs/GATEWAY.md`.
+- The gateway codes unlisted names with no cue, such as "Pasindu Samarakoon called", from runs of capitalised words. The evaluation adds a held-out set and counts non-person phrases coded as names.
 
 ## 0.1.0
 

@@ -68,14 +68,22 @@ Results are from `python scripts/gateway_eval.py` with the trained demo model, t
 
 | Measure | Result |
 |---|---|
-| Labelled identifiers that reached the outgoing text | 50 of 1,665 (3.0%) |
-| Names, cued ("Patient:", "Mr") or in the word lists | 0 leaked |
-| Names not in the lists and with no cue | 50 of 50 leaked |
-| Cards, NICs, phones, record numbers, districts, ages over 89 | 0 leaked |
+| Labelled identifiers that reached the outgoing text | 0 of 1,665 |
+| Names not in the lists and with no cue | 0 of 50 leaked (50 of 50 before the name fallback) |
+| Held-out set: 60 cases, new names, names mid-sentence | 0 of 180 leaked |
 | Clean requests blocked | 0 of 100 |
-| Time per request, model loaded | 0.9 s mean, 3.5 s worst |
+| Non-person phrases coded as names | 2 of 8 sentences ("Lady Ridgeway", "Accident Service") |
+| Time per request, model loaded, idle laptop | 0.33 s mean, 0.46 s worst |
 
-**The rules miss what they were not written for.** Every leak was a name that is not in the word lists and had no cue. A real deployment needs a trained name detector here (the design's layer 2), and Expert Determination to measure what is left.
+**What the name fallback does.** A run of two or three capitalised words counts as a name, unless a word in it is a common, title, place, month or institution word. Before it was added, all 50 unlisted names with no cue leaked.
+
+**Why 0 leaks is not the real rate.** The synthetic cases and the held-out set were both written by the same author as the rules, so they share its blind spots. The fallback misses:
+
+- a name written as one word ("seen by Pasindu");
+- names in lower case or all capitals;
+- names written in Sinhala or Tamil script.
+
+It also codes unknown proper nouns, such as a hospital name, as people. That loses detail but leaks nothing. A real deployment still needs a trained name detector (the design's layer 2), and Expert Determination on real records to measure what is left.
 
 **The memory check did not beat the rules.** On 100 paraphrases of a protected occupation, such as "The patient leads the fisheries ministry", and 100 clean control sentences:
 
@@ -92,7 +100,7 @@ So it carries a weak signal, far too weak to block on. This is the demo model, t
 |---|---|
 | Record adapter | Not built. Cases are pasted or loaded from synthetic samples. |
 | Private brain (BDH) | Built: one memory per case, built in one batched pass. Limited to 2,000 bytes. |
-| De-identifier | Built from rules and word lists. **Gap:** no trained name detector, and no Sinhala or Tamil names. |
+| De-identifier | Built from rules, word lists and a capitalised-word fallback for names. **Gap:** no trained name detector, no one-word or Sinhala and Tamil script names. |
 | Placeholder issuer and re-linker | Built. |
 | Leak gate, layers 1 to 3 | Built. |
 | Leak gate, layer 4 | Built as an experiment. It reports only, because it is unproven (see above). |
